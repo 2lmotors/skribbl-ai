@@ -1,6 +1,6 @@
-# 🎨 Skribbl AI Edition
+# 🪶 LaPlume
 
-Une application de dessin et de devinettes multijoueur en temps réel (clone amélioré de *skribbl.io*) avec **Mode Solo Défi IA**, intégration **Gemini Vision**, support **tactile smartphone (Android / iOS)** et **QR Code d'invitation instantanée**.
+Une application de dessin et de devinettes multijoueur en temps réel avec **Mode Solo Défi IA**, intégration **Gemini Vision**, support **tactile smartphone (Android / iOS)** et **QR Code d'invitation instantanée**.
 
 ---
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
+  Feather,
   Palette, 
   Users, 
   Bot, 
@@ -14,7 +15,7 @@ import {
 } from 'lucide-react';
 import { sound } from '../utils/sound.js';
 
-const AVATARS = ['🎨', '🦊', '🐱', '🐶', '🦁', '🐼', '🦄', '🚀', '👾', '🍕', '⚡', '👑'];
+const AVATARS = ['🪶', '🎨', '🦊', '🐱', '🐶', '🦁', '🐼', '🦄', '🚀', '👾', '🍕', '⚡'];
 const RANDOM_NAMES = ['Picasso', 'Monet', 'DaVinci', 'Gribouilleur', 'VanGogh', 'DoodlePro', 'ArtisteNinja', 'DessinateurFou'];
 
 export default function Lobby({
@@ -94,14 +95,14 @@ export default function Lobby({
       <div className="text-center mb-6">
         <div className="inline-flex items-center justify-center w-16 h-16 rounded-3xl bg-gradient-to-tr from-pink-500 via-indigo-600 to-amber-400 p-0.5 shadow-2xl shadow-indigo-500/30 mb-3">
           <div className="w-full h-full bg-slate-950 rounded-[22px] flex items-center justify-center">
-            <Palette className="w-9 h-9 text-indigo-400" />
+            <Feather className="w-9 h-9 text-indigo-400" />
           </div>
         </div>
-        <h1 className="text-3xl md:text-4xl font-black tracking-tight text-white flex items-center justify-center gap-2">
-          <span>Skribbl</span>
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-amber-400">
-            AI Edition
+        <h1 className="text-3xl md:text-5xl font-black tracking-tight text-white flex items-center justify-center gap-2">
+          <span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-400 via-indigo-300 to-amber-300">
+            LaPlume
           </span>
+          <span className="text-2xl select-none">🪶</span>
         </h1>
         <p className="text-xs md:text-sm text-slate-400 mt-1">
           Le jeu de dessin & devinettes multijoueur avec IA intégrée

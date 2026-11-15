@@ -1,16 +1,16 @@
 @echo off
-title Skribbl AI Edition - Session en Ligne
+title LaPlume - Session en Ligne
 color 0A
 
 echo ==========================================================
-echo          SKRIBBL AI EDITION - PARTIE EN LIGNE
+echo               LAPLUME - PARTIE EN LIGNE
 echo ==========================================================
 echo.
 
 cd /d "%~dp0"
 
 echo [1/2] Lancement du serveur de jeu local...
-start "Serveur Skribbl" /B node server/index.js
+start "Serveur LaPlume" /B node server/index.js
 
 timeout /t 2 >nul
 

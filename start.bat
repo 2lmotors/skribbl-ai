@@ -1,9 +1,9 @@
 @echo off
-title Skribbl AI Edition - Lancement
+title LaPlume - Lancement
 color 0B
 
 echo ==========================================================
-echo           SKRIBBL AI EDITION - INITIALISATION
+echo               LAPLUME - INITIALISATION
 echo ==========================================================
 echo.
 

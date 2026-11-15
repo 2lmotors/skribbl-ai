@@ -56,7 +56,7 @@ const roomManager = new RoomManager(io);
 app.get('/api/info', (req, res) => {
   res.json({
     status: 'online',
-    appName: 'Skribbl AI Edition',
+    appName: 'LaPlume',
     localIp: LOCAL_IP,
     port: PORT,
     localUrl: `http://${LOCAL_IP}:${PORT}`,
@@ -164,7 +164,7 @@ io.on('connection', (socket) => {
 // Lancement du serveur sur 0.0.0.0 pour écouter sur tout le réseau local
 server.listen(PORT, '0.0.0.0', () => {
   console.log('====================================================');
-  console.log(`🎨 SKRIBBL AI EDITION EST EN LIGNE !`);
+  console.log(`🪶 LAPLUME EST EN LIGNE !`);
   console.log(`💻 Accès Local PC  : http://localhost:${PORT}`);
   console.log(`📱 Accès Mobile/Wi-Fi: http://${LOCAL_IP}:${PORT}`);
   console.log(`🌍 Prêt pour Internet et Smartphones (Android / iOS)`);
