@@ -2,6 +2,8 @@
 
 Une application de dessin et de devinettes multijoueur en temps réel avec **Mode Solo Défi IA**, intégration **Gemini Vision**, support **tactile smartphone (Android / iOS)** et **QR Code d'invitation instantanée**.
 
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/2lmotors/skribbl-ai)
+
 ---
 
 ## 🌟 Fonctionnalités Principales
