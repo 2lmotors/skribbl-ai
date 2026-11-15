@@ -1,4 +1,9 @@
 // Module IA pour analyser et deviner les dessins en direct
+import dns from 'dns';
+
+try {
+  dns.setDefaultResultOrder('ipv4first');
+} catch (e) {}
 
 export async function guessDrawingWithAI({ imageBase64, currentWord, apiKey }) {
   const effectiveKey = apiKey || process.env.GEMINI_API_KEY;
@@ -8,7 +13,7 @@ export async function guessDrawingWithAI({ imageBase64, currentWord, apiKey }) {
     try {
       const cleanBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, '');
 
-      const prompt = `Tu es un joueur dans le jeu skribbl.io (Pictionary).
+      const prompt = `Tu es un joueur dans le jeu LaPlume (Pictionary / skribbl).
 Regarde attentivement ce dessin à main levée.
 Devine ce que l'utilisateur est en train de dessiner !
 Sois perspicace et créatif. Donne entre 3 et 5 propositions de mots en français (noms communs au singulier, tout en minuscules, sans article).
@@ -21,7 +26,7 @@ Réponds UNIQUEMENT avec un objet JSON valide au format :
 }`;
 
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${effectiveKey.trim()}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${effectiveKey.trim()}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
