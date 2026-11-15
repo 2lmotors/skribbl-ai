@@ -4,9 +4,11 @@ services:
     runtime: node
     plan: free
     region: frankfurt
-    buildCommand: npm run install:all && npm run build:client
+    buildCommand: npm run build
     startCommand: npm start
     envVars:
+      - key: NODE_VERSION
+        value: 20.18.0
       - key: NODE_ENV
         value: production
       - key: GEMINI_API_KEY
