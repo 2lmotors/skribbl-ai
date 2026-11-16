@@ -227,7 +227,7 @@ export default function SoloAIMode({
 
   return (
     <div className="h-[100dvh] max-h-[100dvh] w-full flex flex-col justify-between overflow-hidden bg-slate-950 p-1 sm:p-2.5 select-none">
-      {/* 1. HEADER ULTRA-COMPACT (Hauteur ~44px) */}
+      {/* 1. HEADER ULTRA-COMPACT (Hauteur ~40px) */}
       <header className="bg-slate-900/90 backdrop-blur border border-slate-800 rounded-xl px-2.5 py-1.5 flex items-center justify-between gap-2 shrink-0 shadow-md">
         <div className="flex items-center gap-1.5 min-w-0">
           <button
@@ -250,16 +250,6 @@ export default function SoloAIMode({
           </div>
         </div>
 
-        {/* Mot cible à dessiner (Centre) */}
-        <div className="bg-gradient-to-r from-pink-500/20 via-indigo-500/20 to-purple-500/20 border border-indigo-400/40 px-3 py-1 rounded-xl text-center min-w-0">
-          <span className="text-[9px] uppercase tracking-wider text-indigo-300 font-bold block leading-none">
-            Dessine :
-          </span>
-          <span className="text-sm sm:text-base font-black text-white uppercase tracking-wider truncate block">
-            {currentWord}
-          </span>
-        </div>
-
         {/* Chronomètre & Options */}
         <div className="flex items-center gap-1.5 shrink-0">
           <div className={`px-2 py-1 rounded-lg border font-mono font-black text-xs sm:text-sm flex items-center gap-1 ${timerStyle}`}>
@@ -277,6 +267,16 @@ export default function SoloAIMode({
         </div>
       </header>
 
+      {/* BANNIÈRE DÉDIÉE PLEINE LARGEUR POUR LE MOT (Visible à 100% sur mobile sans être tronqué) */}
+      <div className="bg-gradient-to-r from-pink-500/20 via-indigo-500/20 to-purple-500/20 border border-indigo-400/40 px-3 py-1 rounded-xl text-center shrink-0 shadow-sm flex items-center justify-center gap-2">
+        <span className="text-[10px] sm:text-xs uppercase font-extrabold text-indigo-300 tracking-wider shrink-0">
+          Mot à dessiner :
+        </span>
+        <span className="text-sm sm:text-xl font-black text-white uppercase tracking-wider break-words">
+          {currentWord}
+        </span>
+      </div>
+
       {/* 2. ZONE DE DESSIN CENTRALE (Flex-1, s'adapte sans dépasser) */}
       <div className="flex-1 min-h-0 flex flex-col justify-center items-center py-1 overflow-hidden">
         <div className="w-full h-full max-h-[58vh] sm:max-h-[62vh] flex items-center justify-center">
@@ -287,6 +287,7 @@ export default function SoloAIMode({
             activeColor={activeColor}
             brushSize={brushSize}
             onSnapshotReady={handleSnapshotReady}
+            onClear={() => setClearTrigger(prev => prev + 1)}
           />
         </div>
       </div>

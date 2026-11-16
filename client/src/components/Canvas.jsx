@@ -1,5 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { performFloodFill } from '../utils/floodFill.js';
+import { Trash2, RotateCcw } from 'lucide-react';
+import { sound } from '../utils/sound.js';
 
 const VIRTUAL_WIDTH = 1000;
 const VIRTUAL_HEIGHT = 650;
@@ -12,6 +14,8 @@ export default function Canvas({
   onDrawAction,
   externalAction,
   onSnapshotReady,
+  onClear,
+  onUndo,
 }) {
   const canvasRef = useRef(null);
   const isDrawingRef = useRef(false);
@@ -197,7 +201,47 @@ export default function Canvas({
   };
 
   return (
-    <div className="relative w-full aspect-[16/10] bg-white rounded-2xl overflow-hidden shadow-2xl border-4 border-slate-800">
+    <div className="relative w-full aspect-[16/10] bg-white rounded-2xl overflow-hidden shadow-2xl border-2 sm:border-4 border-slate-800">
+      {/* Boutons flottants de correction dans le coin supérieur droit du canvas */}
+      {isDrawer && (onClear || onUndo) && (
+        <div className="absolute top-2 right-2 flex items-center gap-1.5 z-20 pointer-events-auto">
+          {onUndo && (
+            <button
+              type="button"
+              onMouseDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                onUndo();
+                sound.playPop();
+              }}
+              title="Annuler le dernier trait"
+              className="p-1.5 sm:p-2 bg-slate-900/85 hover:bg-slate-900 active:scale-90 text-slate-200 hover:text-white rounded-xl border border-slate-700/80 shadow-md backdrop-blur transition"
+            >
+              <RotateCcw className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            </button>
+          )}
+
+          {onClear && (
+            <button
+              type="button"
+              onMouseDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                onClear();
+                sound.playPop();
+              }}
+              title="Effacer tout le dessin pour recommencer"
+              className="px-2.5 py-1.5 bg-rose-600/90 hover:bg-rose-600 active:scale-90 text-white rounded-xl border border-rose-400 shadow-md backdrop-blur transition flex items-center gap-1.5 font-bold text-xs"
+            >
+              <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
+              <span className="text-[11px] sm:text-xs font-bold">Effacer</span>
+            </button>
+          )}
+        </div>
+      )}
+
       <canvas
         ref={canvasRef}
         width={VIRTUAL_WIDTH}

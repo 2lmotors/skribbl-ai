@@ -340,6 +340,7 @@ export default function App() {
                   brushSize={brushSize}
                   onDrawAction={handleDrawAction}
                   externalAction={externalDrawAction}
+                  onClear={() => handleDrawAction({ type: 'clear' })}
                 />
               </div>
 

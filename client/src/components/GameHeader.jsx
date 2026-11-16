@@ -58,7 +58,7 @@ export default function GameHeader({
             <span className="text-[9px] sm:text-[10px] uppercase tracking-wider text-slate-400 block leading-none">
               Le mot était :
             </span>
-            <span className="text-sm sm:text-xl font-black text-emerald-400 uppercase tracking-widest truncate block">
+            <span className="text-xs sm:text-lg font-black text-emerald-400 uppercase tracking-widest break-words leading-tight block">
               {secretWord}
             </span>
           </div>
@@ -67,7 +67,7 @@ export default function GameHeader({
             <span className="text-[9px] sm:text-[10px] uppercase tracking-wider text-indigo-400 block font-semibold leading-none">
               Tu dessines :
             </span>
-            <span className="text-sm sm:text-xl font-black text-white uppercase tracking-wider truncate block">
+            <span className="text-xs sm:text-lg font-black text-white uppercase tracking-wider break-words leading-tight block">
               {secretWord}
             </span>
           </div>
