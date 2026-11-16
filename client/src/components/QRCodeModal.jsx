@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
-import { X, Copy, Check, Smartphone, QrCode } from 'lucide-react';
+import { X, Copy, Check, Smartphone, QrCode, Share2 } from 'lucide-react';
 
 export default function QRCodeModal({ isOpen, onClose, roomId }) {
   const [qrSrc, setQrSrc] = useState('');
@@ -27,6 +27,20 @@ export default function QRCodeModal({ isOpen, onClose, roomId }) {
   }, [isOpen, roomId, joinUrl]);
 
   if (!isOpen) return null;
+
+  const handleShare = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Rejoins ma partie sur LaPlume ! 🪶',
+          text: `Clique sur ce lien pour me rejoindre dans le salon ${roomId} :`,
+          url: joinUrl,
+        });
+        return;
+      } catch (err) {}
+    }
+    handleCopy();
+  };
 
   const handleCopy = () => {
     navigator.clipboard.writeText(joinUrl);
@@ -74,14 +88,24 @@ export default function QRCodeModal({ isOpen, onClose, roomId }) {
           </div>
         </div>
 
-        {/* Bouton Copier le lien */}
-        <button
-          onClick={handleCopy}
-          className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-semibold rounded-xl text-sm flex items-center justify-center gap-2 transition shadow-lg shadow-indigo-600/20"
-        >
-          {copied ? <Check className="w-4 h-4 text-emerald-300" /> : <Copy className="w-4 h-4" />}
-          {copied ? 'Lien copié dans le presse-papier !' : 'Copier le lien d\'invitation'}
-        </button>
+        {/* Boutons Partager & Copier */}
+        <div className="flex flex-col gap-2">
+          <button
+            onClick={handleShare}
+            className="w-full py-2.5 px-4 bg-gradient-to-r from-indigo-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500 active:scale-95 text-white font-bold rounded-xl text-sm flex items-center justify-center gap-2 transition shadow-lg shadow-indigo-600/30"
+          >
+            <Share2 className="w-4 h-4" />
+            <span>Partager le lien (WhatsApp, SMS...)</span>
+          </button>
+
+          <button
+            onClick={handleCopy}
+            className="w-full py-2 px-4 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 hover:text-white font-medium rounded-xl text-xs flex items-center justify-center gap-1.5 transition"
+          >
+            {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+            <span>{copied ? 'Lien copié dans le presse-papier !' : 'Copier le lien direct'}</span>
+          </button>
+        </div>
       </div>
     </div>
   );

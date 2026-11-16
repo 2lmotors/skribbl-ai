@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { socket } from './utils/socket.js';
 import { sound } from './utils/sound.js';
 import Lobby from './components/Lobby.jsx';
@@ -13,7 +13,10 @@ import RoundLeaderboardModal from './components/RoundLeaderboardModal.jsx';
 import SoloAIMode from './components/SoloAIMode.jsx';
 import QRCodeModal from './components/QRCodeModal.jsx';
 import SettingsModal from './components/SettingsModal.jsx';
-import { Play, Copy, Check, Users } from 'lucide-react';
+import { Play, Copy, Check, Users, Share2, Edit2, Smartphone, Sparkles, X } from 'lucide-react';
+
+const AVATARS = ['🪶', '🎨', '🦊', '🐱', '🐶', '🦁', '🐼', '🦄', '🚀', '👾', '🍕', '⚡'];
+const RANDOM_NAMES = ['Picasso', 'Monet', 'DaVinci', 'Gribouilleur', 'VanGogh', 'DoodlePro', 'ArtisteNinja', 'DessinateurFou'];
 
 export default function App() {
   const [view, setView] = useState('lobby'); // 'lobby' | 'game' | 'solo_ai'
@@ -33,18 +36,60 @@ export default function App() {
   const [activeColor, setActiveColor] = useState('#000000');
   const [brushSize, setBrushSize] = useState(8);
 
-  // Modales
+  // Modales & Profil
   const [isQrOpen, setIsQrOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [myNickname, setMyNickname] = useState('');
+  const [myAvatar, setMyAvatar] = useState('🪶');
+  const [copiedLink, setCopiedLink] = useState(false);
 
-  // Code de salon dans l'URL (ex: ?room=ABC123)
+  // Connexion automatique via lien d'invitation (?room=ABC123)
   const [urlRoomCode, setUrlRoomCode] = useState('');
+  const [isAutoJoining, setIsAutoJoining] = useState(false);
+  const [autoJoinCode, setAutoJoinCode] = useState('');
+  const hasAutoJoinedRef = useRef(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const code = params.get('room');
-    if (code) {
-      setUrlRoomCode(code.toUpperCase());
+    const code = params.get('room')?.trim().toUpperCase();
+    if (!code || hasAutoJoinedRef.current) return;
+
+    hasAutoJoinedRef.current = true;
+    setUrlRoomCode(code);
+    setAutoJoinCode(code);
+    setIsAutoJoining(true);
+
+    const savedName = localStorage.getItem('SKRIBBL_NICKNAME');
+    const randomName = RANDOM_NAMES[Math.floor(Math.random() * RANDOM_NAMES.length)] + Math.floor(Math.random() * 90 + 10);
+    const effectiveNick = (savedName && savedName.trim()) ? savedName.trim() : randomName;
+    const randomAvatar = AVATARS[Math.floor(Math.random() * AVATARS.length)];
+
+    setMyNickname(effectiveNick);
+    setMyAvatar(randomAvatar);
+
+    if (!savedName) {
+      localStorage.setItem('SKRIBBL_NICKNAME', effectiveNick);
+    }
+
+    const doJoin = () => {
+      socket.emit('join_room', {
+        roomId: code,
+        playerInfo: {
+          nickname: effectiveNick,
+          avatar: randomAvatar,
+        },
+      });
+      // Nettoyer l'URL discrètement sans recharger pour une expérience fluide
+      try {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } catch (e) {}
+    };
+
+    if (socket.connected) {
+      doJoin();
+    } else {
+      socket.once('connect', doJoin);
     }
   }, []);
 
@@ -61,6 +106,7 @@ export default function App() {
     socket.on('room_state', (state) => {
       setRoom(state);
       setView('game');
+      setIsAutoJoining(false);
       setErrorMsg('');
 
       if (state.state === 'ROUND_OVER') {
@@ -120,7 +166,9 @@ export default function App() {
     });
 
     socket.on('join_error', ({ message }) => {
+      setIsAutoJoining(false);
       setErrorMsg(message);
+      setView('lobby');
       sound.playClose();
     });
 
@@ -181,6 +229,47 @@ export default function App() {
     window.location.href = '/';
   };
 
+  const handleShareLink = async () => {
+    if (!room || !room.roomId) return;
+    const joinUrl = `${window.location.origin}/?room=${room.roomId}`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Rejoins ma partie sur LaPlume ! 🪶',
+          text: `Clique sur ce lien pour me rejoindre directement dans le salon ${room.roomId} :`,
+          url: joinUrl,
+        });
+        return;
+      } catch (err) {
+        // L'utilisateur a annulé ou le partage natif a échoué, on passe au presse-papier
+      }
+    }
+
+    try {
+      await navigator.clipboard.writeText(joinUrl);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2500);
+      sound.playPop();
+    } catch (e) {
+      // Ignorer
+    }
+  };
+
+  const handleUpdateProfile = (e) => {
+    e?.preventDefault();
+    if (!room || !room.roomId) return;
+    const cleanNick = myNickname.trim() || 'Artiste';
+    localStorage.setItem('SKRIBBL_NICKNAME', cleanNick);
+    socket.emit('update_profile', {
+      roomId: room.roomId,
+      nickname: cleanNick,
+      avatar: myAvatar,
+    });
+    setIsEditingProfile(false);
+    sound.playPop();
+  };
+
   // Rendu de la vue appropriée
   return (
     <div className="min-h-screen text-slate-100 p-2 sm:p-4 select-none">
@@ -192,8 +281,27 @@ export default function App() {
         </div>
       )}
 
+      {/* Écran de chargement lors de la connexion automatique par lien d'invitation */}
+      {isAutoJoining && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md">
+          <div className="bg-slate-900 border border-slate-700/80 rounded-3xl p-8 max-w-sm w-full shadow-2xl text-center flex flex-col items-center animate-fadeIn">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-indigo-600 to-pink-600 flex items-center justify-center text-3xl shadow-lg shadow-indigo-500/30 mb-4 animate-bounce">
+              🪶
+            </div>
+            <h2 className="text-xl font-black text-white mb-1">Connexion au salon...</h2>
+            <p className="text-sm text-slate-400 mb-5">
+              Code salon : <span className="font-mono font-extrabold text-amber-400 bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-800">{autoJoinCode}</span>
+            </p>
+            <div className="flex items-center gap-2 text-xs font-semibold text-indigo-300 bg-indigo-950/60 px-4 py-2 rounded-xl border border-indigo-500/30">
+              <div className="w-2.5 h-2.5 rounded-full bg-indigo-400 animate-ping" />
+              <span>Connexion instantanée en cours...</span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 1. VUE LOBBY / ACCUEIL */}
-      {view === 'lobby' && (
+      {view === 'lobby' && !isAutoJoining && (
         <Lobby
           onCreateRoom={handleCreateRoom}
           onJoinRoom={handleJoinRoom}
@@ -220,11 +328,12 @@ export default function App() {
       {/* 3. VUE SALON D'ATTENTE MULTIJOUEUR */}
       {view === 'game' && room && room.state === 'LOBBY' && (
         <div className="max-w-2xl mx-auto py-6 px-4">
-          <div className="bg-slate-900/90 backdrop-blur border border-slate-700/80 rounded-3xl p-6 shadow-2xl space-y-6">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+          <div className="bg-slate-900/90 backdrop-blur border border-slate-700/80 rounded-3xl p-6 shadow-2xl space-y-5">
+            {/* Entête salon + Boutons d'invitation */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
               <div>
                 <span className="text-xs uppercase font-bold text-indigo-400 block">
-                  Salon d'attente
+                  Salon d'attente multijoueur
                 </span>
                 <h2 className="text-2xl font-black text-white flex items-center gap-2">
                   <span>Code :</span>
@@ -234,11 +343,44 @@ export default function App() {
                 </h2>
               </div>
 
+              {/* Actions d'invitation directe */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleShareLink}
+                  className="flex-1 sm:flex-none py-2 px-3.5 bg-gradient-to-r from-indigo-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-md active:scale-95"
+                  title="Partager le lien d'invitation directement par SMS, WhatsApp, etc."
+                >
+                  {copiedLink ? <Check className="w-4 h-4 text-emerald-300" /> : <Share2 className="w-4 h-4" />}
+                  <span>{copiedLink ? 'Lien copié !' : '🔗 Inviter des amis'}</span>
+                </button>
+
+                <button
+                  onClick={() => setIsQrOpen(true)}
+                  className="py-2 px-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+                  title="Afficher le QR Code pour smartphone"
+                >
+                  <Smartphone className="w-4 h-4 text-indigo-400" />
+                  <span className="hidden sm:inline">QR Code</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Bannière d'invitation en 1 clic */}
+            <div className="p-3 bg-indigo-950/40 border border-indigo-500/30 rounded-2xl flex items-center justify-between gap-2 shadow-inner">
+              <div className="min-w-0 flex-1">
+                <span className="text-[10px] uppercase font-bold text-indigo-300 block">
+                  Lien d'accès direct (rejoint sans taper de code) :
+                </span>
+                <span className="text-xs font-mono text-slate-300 truncate block select-all">
+                  {typeof window !== 'undefined' ? `${window.location.origin}/?room=${room.roomId}` : ''}
+                </span>
+              </div>
               <button
-                onClick={() => setIsQrOpen(true)}
-                className="py-2 px-3 bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/40 text-indigo-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+                onClick={handleShareLink}
+                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-xs font-bold rounded-xl transition flex items-center gap-1 shrink-0"
               >
-                📱 QR Code Smartphone
+                {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-300" /> : <Copy className="w-3.5 h-3.5" />}
+                <span>{copiedLink ? 'Copié !' : 'Copier'}</span>
               </button>
             </div>
 
@@ -246,36 +388,68 @@ export default function App() {
             <div>
               <div className="flex items-center justify-between text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
                 <span className="flex items-center gap-1.5">
-                  <Users className="w-4 h-4" />
+                  <Users className="w-4 h-4 text-indigo-400" />
                   Joueurs prêts ({room.players?.length || 0})
                 </span>
                 <span>{room.settings?.maxRounds} manches • {room.settings?.roundDuration}s</span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {room.players?.map((p) => (
-                  <div
-                    key={p.id}
-                    className="p-3 bg-slate-800/60 border border-slate-700 rounded-2xl flex items-center justify-between"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <span className="text-2xl">{p.avatar || '🎨'}</span>
-                      <span className="font-bold text-sm text-white truncate max-w-[140px]">
-                        {p.nickname}
-                      </span>
+                {room.players?.map((p) => {
+                  const isMe = p.id === socket.id;
+                  return (
+                    <div
+                      key={p.id}
+                      className={`p-3 rounded-2xl border transition flex items-center justify-between ${
+                        isMe
+                          ? 'bg-indigo-950/50 border-indigo-500/60 ring-1 ring-indigo-500/30 shadow-md'
+                          : 'bg-slate-800/60 border-slate-700'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span className="text-2xl shrink-0">{p.avatar || '🎨'}</span>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-bold text-sm text-white truncate max-w-[120px]">
+                              {p.nickname}
+                            </span>
+                            {isMe && (
+                              <span className="px-1.5 py-0.2 bg-indigo-600 text-white text-[9px] font-black rounded uppercase">
+                                Toi
+                              </span>
+                            )}
+                          </div>
+                          {isMe && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setMyNickname(p.nickname);
+                                setMyAvatar(p.avatar || '🎨');
+                                setIsEditingProfile(true);
+                              }}
+                              className="text-[10px] text-indigo-300 hover:text-white underline flex items-center gap-0.5 mt-0.5"
+                            >
+                              <Edit2 className="w-2.5 h-2.5" /> Modifier pseudo / avatar
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1 shrink-0">
+                        {p.isHost && (
+                          <span className="px-2 py-0.5 bg-amber-500/20 text-amber-300 text-[10px] font-extrabold rounded-md uppercase">
+                            Hôte
+                          </span>
+                        )}
+                        {p.isAi && (
+                          <span className="px-2 py-0.5 bg-indigo-500/20 text-indigo-300 text-[10px] font-extrabold rounded-md uppercase">
+                            Bot IA
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    {p.isHost && (
-                      <span className="px-2 py-0.5 bg-amber-500/20 text-amber-300 text-[10px] font-extrabold rounded-md uppercase">
-                        Hôte
-                      </span>
-                    )}
-                    {p.isAi && (
-                      <span className="px-2 py-0.5 bg-indigo-500/20 text-indigo-300 text-[10px] font-extrabold rounded-md uppercase">
-                        Bot IA
-                      </span>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
@@ -295,6 +469,80 @@ export default function App() {
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mini-Modale de modification de profil en direct dans le salon */}
+      {isEditingProfile && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fadeIn">
+          <div className="w-full max-w-sm bg-slate-900 border border-slate-700 rounded-3xl p-6 text-white relative shadow-2xl">
+            <button
+              onClick={() => setIsEditingProfile(false)}
+              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <h3 className="text-lg font-bold mb-3 flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-indigo-400" />
+              Modifier ton profil
+            </h3>
+
+            <form onSubmit={handleUpdateProfile} className="space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">
+                  Ton Pseudo
+                </label>
+                <input
+                  type="text"
+                  value={myNickname}
+                  onChange={(e) => setMyNickname(e.target.value)}
+                  maxLength={18}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white font-bold focus:border-indigo-500 focus:outline-none"
+                  placeholder="Entre ton pseudo..."
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1.5">
+                  Choisis ton Avatar
+                </label>
+                <div className="grid grid-cols-6 gap-2">
+                  {AVATARS.map((av) => (
+                    <button
+                      key={av}
+                      type="button"
+                      onClick={() => setMyAvatar(av)}
+                      className={`text-2xl p-2 rounded-xl transition ${
+                        myAvatar === av
+                          ? 'bg-indigo-600 scale-110 shadow-lg'
+                          : 'bg-slate-800 hover:bg-slate-700'
+                      }`}
+                    >
+                      {av}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="pt-2 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsEditingProfile(false)}
+                  className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold rounded-xl text-xs transition"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs transition shadow-lg shadow-indigo-600/30"
+                >
+                  Enregistrer
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

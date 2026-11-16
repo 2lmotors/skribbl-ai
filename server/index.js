@@ -129,6 +129,11 @@ io.on('connection', (socket) => {
     roomManager.updateSettings(roomId, socket.id, settings);
   });
 
+  // Mettre à jour le profil du joueur (pseudo / avatar)
+  socket.on('update_profile', ({ roomId, nickname, avatar }) => {
+    roomManager.updateProfile(roomId, socket.id, { nickname, avatar });
+  });
+
   // Lancer la partie
   socket.on('start_game', ({ roomId }) => {
     roomManager.startGame(roomId, socket.id);

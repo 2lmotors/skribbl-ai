@@ -151,6 +151,23 @@ export class RoomManager {
     this.broadcastRoomState(roomId);
   }
 
+  updateProfile(roomId, socketId, { nickname, avatar }) {
+    const room = this.rooms.get(roomId);
+    if (!room) return;
+
+    const player = room.players.get(socketId);
+    if (!player) return;
+
+    if (nickname && typeof nickname === 'string') {
+      player.nickname = nickname.trim().slice(0, 18);
+    }
+    if (avatar && typeof avatar === 'string') {
+      player.avatar = avatar;
+    }
+
+    this.broadcastRoomState(roomId);
+  }
+
   startGame(roomId, socketId) {
     const room = this.rooms.get(roomId);
     if (!room || room.hostId !== socketId || room.state !== 'LOBBY') return;
