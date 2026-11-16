@@ -20,7 +20,7 @@ export default function Canvas({
   const canvasRef = useRef(null);
   const isDrawingRef = useRef(false);
   const lastPointRef = useRef(null);
-  const strokeHistoryRef = useRef([]); // Historique pour le undo local
+  const undoStackRef = useRef([]); // Historique pour le undo
 
   // Initialisation du Canvas avec fond blanc
   const initCanvas = useCallback(() => {
@@ -29,11 +29,50 @@ export default function Canvas({
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
+    try {
+      undoStackRef.current = [ctx.getImageData(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT)];
+    } catch (e) {}
   }, []);
 
   useEffect(() => {
     initCanvas();
   }, [initCanvas]);
+
+  // Sauvegarder un instantané pour le Undo
+  const saveUndoSnapshot = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    try {
+      const snap = ctx.getImageData(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
+      undoStackRef.current.push(snap);
+      if (undoStackRef.current.length > 20) {
+        undoStackRef.current.shift();
+      }
+    } catch (e) {}
+  }, []);
+
+  // Envoi d'une capture périodique pour l'analyse IA
+  const sendSnapshot = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !onSnapshotReady) return;
+    const dataUrl = canvas.toDataURL('image/png', 0.7);
+    onSnapshotReady(dataUrl);
+  }, [onSnapshotReady]);
+
+  // Annuler le dernier trait
+  const performUndo = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || undoStackRef.current.length <= 1) return;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+    undoStackRef.current.pop();
+    const previous = undoStackRef.current[undoStackRef.current.length - 1];
+    if (previous) {
+      ctx.putImageData(previous, 0, 0);
+    }
+    sendSnapshot();
+  }, [sendSnapshot]);
 
   // Exécution d'une action de dessin sur le contexte
   const applyDrawAction = useCallback((action) => {
@@ -44,6 +83,14 @@ export default function Canvas({
     if (action.type === 'clear') {
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
+      try {
+        undoStackRef.current = [ctx.getImageData(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT)];
+      } catch (e) {}
+      return;
+    }
+
+    if (action.type === 'undo') {
+      performUndo();
       return;
     }
 
@@ -54,6 +101,7 @@ export default function Canvas({
         action.y * VIRTUAL_HEIGHT,
         action.color || '#000000'
       );
+      saveUndoSnapshot();
       return;
     }
 
@@ -178,14 +226,6 @@ export default function Canvas({
     if (onDrawAction) onDrawAction(action);
   };
 
-  // Envoi d'une capture périodique pour l'analyse IA
-  const sendSnapshot = () => {
-    const canvas = canvasRef.current;
-    if (!canvas || !onSnapshotReady) return;
-    const dataUrl = canvas.toDataURL('image/png', 0.7);
-    onSnapshotReady(dataUrl);
-  };
-
   // Fin du tracé
   const stopDrawing = (e) => {
     if (!isDrawer || !isDrawingRef.current) return;
@@ -196,49 +236,56 @@ export default function Canvas({
     applyDrawAction(action);
     if (onDrawAction) onDrawAction(action);
 
-    // Capture pour l'IA
+    // Sauvegarde pour le Undo et capture pour l'IA
+    saveUndoSnapshot();
     sendSnapshot();
   };
 
   return (
     <div className="relative w-full aspect-[16/10] bg-white rounded-2xl overflow-hidden shadow-2xl border-2 sm:border-4 border-slate-800">
       {/* Boutons flottants de correction dans le coin supérieur droit du canvas */}
-      {isDrawer && (onClear || onUndo) && (
+      {isDrawer && (
         <div className="absolute top-2 right-2 flex items-center gap-1.5 z-20 pointer-events-auto">
-          {onUndo && (
-            <button
-              type="button"
-              onMouseDown={(e) => e.stopPropagation()}
-              onTouchStart={(e) => e.stopPropagation()}
-              onClick={(e) => {
-                e.stopPropagation();
-                onUndo();
-                sound.playPop();
-              }}
-              title="Annuler le dernier trait"
-              className="p-1.5 sm:p-2 bg-slate-900/85 hover:bg-slate-900 active:scale-90 text-slate-200 hover:text-white rounded-xl border border-slate-700/80 shadow-md backdrop-blur transition"
-            >
-              <RotateCcw className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            </button>
-          )}
+          {/* Bouton Flèche Annuler (Undo) */}
+          <button
+            type="button"
+            onMouseDown={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              performUndo();
+              if (onDrawAction) onDrawAction({ type: 'undo' });
+              if (onUndo) onUndo();
+              sound.playPop();
+            }}
+            title="Annuler le dernier trait (Undo)"
+            className="px-2 sm:px-2.5 py-1.5 bg-slate-900/90 hover:bg-slate-800 active:scale-90 text-white rounded-xl border border-slate-700 shadow-md backdrop-blur transition flex items-center gap-1"
+          >
+            <RotateCcw className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-400" />
+            <span className="text-[10px] sm:text-xs font-bold hidden sm:inline">Annuler</span>
+          </button>
 
-          {onClear && (
-            <button
-              type="button"
-              onMouseDown={(e) => e.stopPropagation()}
-              onTouchStart={(e) => e.stopPropagation()}
-              onClick={(e) => {
-                e.stopPropagation();
+          {/* Bouton Effacer tout */}
+          <button
+            type="button"
+            onMouseDown={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onClear) {
                 onClear();
-                sound.playPop();
-              }}
-              title="Effacer tout le dessin pour recommencer"
-              className="px-2.5 py-1.5 bg-rose-600/90 hover:bg-rose-600 active:scale-90 text-white rounded-xl border border-rose-400 shadow-md backdrop-blur transition flex items-center gap-1.5 font-bold text-xs"
-            >
-              <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
-              <span className="text-[11px] sm:text-xs font-bold">Effacer</span>
-            </button>
-          )}
+              } else {
+                applyDrawAction({ type: 'clear' });
+                if (onDrawAction) onDrawAction({ type: 'clear' });
+              }
+              sound.playPop();
+            }}
+            title="Effacer tout le dessin pour recommencer"
+            className="px-2.5 py-1.5 bg-rose-600/90 hover:bg-rose-600 active:scale-90 text-white rounded-xl border border-rose-400 shadow-md backdrop-blur transition flex items-center gap-1.5 font-bold text-xs"
+          >
+            <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
+            <span className="text-[11px] sm:text-xs font-bold">Effacer</span>
+          </button>
         </div>
       )}
 

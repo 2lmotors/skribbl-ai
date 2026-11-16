@@ -279,6 +279,9 @@ export class RoomManager {
     room.state = 'SELECTING_WORD';
     room.timeRemaining = 15; // 15 secondes pour choisir
 
+    // Effacer immédiatement le dessin chez tous les joueurs pour le nouveau tour
+    this.io.to(roomId).emit('draw_event', { type: 'clear' });
+
     // Mots au choix
     room.wordChoices = getRandomWordChoices(room.settings.category, room.settings.customWords);
     room.currentWord = '';
@@ -311,6 +314,9 @@ export class RoomManager {
     room.state = 'DRAWING';
     room.timeRemaining = room.settings.roundDuration;
     room.hintMask = this.generateHintMask(word, 0);
+
+    // Effacer à nouveau pour être certain que la toile est vierge pour le nouveau mot
+    this.io.to(roomId).emit('draw_event', { type: 'clear' });
 
     this.broadcastRoomState(roomId);
     this.broadcastChat(roomId, {
@@ -408,6 +414,20 @@ export class RoomManager {
 
     if (action.type === 'clear') {
       room.canvasActions = [];
+    } else if (action.type === 'undo') {
+      // Retirer le dernier tracé de l'historique
+      let lastStartIndex = -1;
+      for (let i = room.canvasActions.length - 1; i >= 0; i--) {
+        if (room.canvasActions[i].type === 'start') {
+          lastStartIndex = i;
+          break;
+        }
+      }
+      if (lastStartIndex !== -1) {
+        room.canvasActions.splice(lastStartIndex);
+      } else {
+        room.canvasActions.pop();
+      }
     } else {
       room.canvasActions.push(action);
     }

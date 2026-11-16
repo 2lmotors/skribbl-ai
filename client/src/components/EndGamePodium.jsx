@@ -1,9 +1,9 @@
 import React, { useEffect } from 'react';
 import confetti from 'canvas-confetti';
-import { Trophy, Medal, Award, ArrowRight } from 'lucide-react';
+import { Trophy, Medal, Award, RotateCcw, LogOut } from 'lucide-react';
 import { sound } from '../utils/sound.js';
 
-export default function EndGamePodium({ podium = [], onReturnLobby }) {
+export default function EndGamePodium({ podium = [], onReturnLobby, onLeaveGame }) {
   useEffect(() => {
     sound.playVictory();
 
@@ -104,14 +104,24 @@ export default function EndGamePodium({ podium = [], onReturnLobby }) {
           </div>
         </div>
 
-        {/* Bouton retour */}
-        <button
-          onClick={onReturnLobby}
-          className="w-full py-3.5 px-6 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-2xl flex items-center justify-center gap-2 transition shadow-lg shadow-indigo-600/30 text-base"
-        >
-          <span>Retourner au salon</span>
-          <ArrowRight className="w-5 h-5" />
-        </button>
+        {/* Boutons d'action de fin de partie */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+          <button
+            onClick={onReturnLobby}
+            className="w-full py-3.5 px-4 bg-gradient-to-r from-emerald-600 to-indigo-600 hover:from-emerald-500 hover:to-indigo-500 text-white font-bold rounded-2xl flex items-center justify-center gap-2 transition shadow-lg shadow-emerald-600/20 text-sm active:scale-95"
+          >
+            <RotateCcw className="w-4 h-4" />
+            <span>Retour au salon</span>
+          </button>
+
+          <button
+            onClick={onLeaveGame}
+            className="w-full py-3.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-bold rounded-2xl flex items-center justify-center gap-2 transition border border-slate-700 text-sm active:scale-95"
+          >
+            <LogOut className="w-4 h-4 text-rose-400" />
+            <span>Quitter le jeu</span>
+          </button>
+        </div>
       </div>
     </div>
   );

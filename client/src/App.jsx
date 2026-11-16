@@ -674,6 +674,7 @@ export default function App() {
             <div className="flex-1 min-h-0 md:col-span-3 lg:col-span-3 flex flex-col justify-between overflow-hidden">
               <div className="flex-1 min-h-0 max-h-[38vh] sm:max-h-[58vh] flex items-center justify-center">
                 <Canvas
+                  key={`canvas_${room.currentDrawerId}_round_${room.currentRound}`}
                   isDrawer={room.currentDrawerId === socket.id && room.state === 'DRAWING'}
                   activeTool={activeTool}
                   activeColor={activeColor}
@@ -787,8 +788,11 @@ export default function App() {
           podium={podium}
           onReturnLobby={() => {
             setPodium(null);
-            setView('lobby');
+            if (room) {
+              setRoom((prev) => ({ ...prev, state: 'LOBBY' }));
+            }
           }}
+          onLeaveGame={handleLeaveRoom}
         />
       )}
 
