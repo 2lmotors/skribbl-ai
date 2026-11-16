@@ -109,6 +109,51 @@ export default function App() {
     }
   }, []);
 
+  // Empêcher la mise en veille du smartphone pendant les parties & resynchronisation automatique
+  useEffect(() => {
+    let wakeLockSentinel = null;
+
+    const requestWakeLock = async () => {
+      try {
+        if ('wakeLock' in navigator && document.visibilityState === 'visible') {
+          wakeLockSentinel = await navigator.wakeLock.request('screen');
+        }
+      } catch (err) {
+        // Ignorer si non supporté ou refusé par les paramètres de batterie
+      }
+    };
+
+    if (view === 'game' || view === 'solo_ai') {
+      requestWakeLock();
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        if (view === 'game' || view === 'solo_ai') {
+          requestWakeLock();
+        }
+        // Re-synchronisation immédiate de l'état du salon sans avoir à recharger la page
+        const activeCode = currentRoomCodeRef.current || sessionStorage.getItem('CURRENT_ROOM_CODE');
+        if (activeCode && socket.connected) {
+          socket.emit('reconnect_player', {
+            roomId: activeCode,
+            userId: getOrCreateUserId(),
+            nickname: localStorage.getItem('SKRIBBL_NICKNAME') || 'Artiste',
+          });
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (wakeLockSentinel) {
+        wakeLockSentinel.release().catch(() => {});
+      }
+    };
+  }, [view]);
+
   // Écouteurs Socket.io
   useEffect(() => {
     socket.on('connect', () => {
@@ -137,6 +182,11 @@ export default function App() {
       setErrorMsg('');
       currentRoomCodeRef.current = state.roomId;
       sessionStorage.setItem('CURRENT_ROOM_CODE', state.roomId);
+
+      // Fermer immédiatement le modal de fin de manche dès que le tour suivant commence
+      if (state.state === 'SELECTING_WORD' || state.state === 'DRAWING') {
+        setRoundEndData(null);
+      }
 
       if (state.state === 'ROUND_OVER') {
         if (state.secretWord) {
@@ -622,7 +672,7 @@ export default function App() {
 
             {/* Colonne Centrale : Canvas & Toolbar */}
             <div className="flex-1 min-h-0 md:col-span-3 lg:col-span-3 flex flex-col justify-between overflow-hidden">
-              <div className="flex-1 min-h-0 max-h-[46vh] sm:max-h-[58vh] flex items-center justify-center">
+              <div className="flex-1 min-h-0 max-h-[38vh] sm:max-h-[58vh] flex items-center justify-center">
                 <Canvas
                   isDrawer={room.currentDrawerId === socket.id && room.state === 'DRAWING'}
                   activeTool={activeTool}
@@ -634,25 +684,28 @@ export default function App() {
                 />
               </div>
 
-              <div className="shrink-0 my-1">
-                <Toolbar
-                  activeTool={activeTool}
-                  setActiveTool={setActiveTool}
-                  activeColor={activeColor}
-                  setActiveColor={setActiveColor}
-                  brushSize={brushSize}
-                  setBrushSize={setBrushSize}
-                  onUndo={() => {}}
-                  onClear={() => {
-                    handleDrawAction({ type: 'clear' });
-                  }}
-                  isDrawer={room.currentDrawerId === socket.id && room.state === 'DRAWING'}
-                />
-              </div>
+              {/* Toolbar : affichée UNIQUEMENT pour le dessinateur pour préserver la visibilité du dessin pour les devineurs sur mobile */}
+              {(room.currentDrawerId === socket.id && room.state === 'DRAWING') && (
+                <div className="shrink-0 my-1">
+                  <Toolbar
+                    activeTool={activeTool}
+                    setActiveTool={setActiveTool}
+                    activeColor={activeColor}
+                    setActiveColor={setActiveColor}
+                    brushSize={brushSize}
+                    setBrushSize={setBrushSize}
+                    onUndo={() => {}}
+                    onClear={() => {
+                      handleDrawAction({ type: 'clear' });
+                    }}
+                    isDrawer={true}
+                  />
+                </div>
+              )}
 
-              {/* Version Mobile : Onglets [Chat] et [Joueurs] pour tout garder sur 1 seul écran */}
-              <div className="md:hidden flex-1 min-h-[140px] max-h-[30vh] flex flex-col overflow-hidden">
-                <div className="flex items-center gap-1 mb-1 bg-slate-950 p-1 rounded-xl border border-slate-800 shrink-0">
+              {/* Version Mobile : Onglets [Chat] et [Joueurs] ajustables automatiquement */}
+              <div className="md:hidden flex-1 min-h-0 max-h-[46vh] flex flex-col overflow-hidden">
+                <div className="flex items-center gap-1 mb-1 bg-slate-950 p-0.5 rounded-xl border border-slate-800 shrink-0">
                   <button
                     onClick={() => setMobileTab('chat')}
                     className={`flex-1 py-1 px-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
@@ -661,7 +714,7 @@ export default function App() {
                         : 'text-slate-400 hover:text-white'
                     }`}
                   >
-                    <span>💬 Chat & Réponses</span>
+                    <span>💬 Chat & Propositions</span>
                   </button>
                   <button
                     onClick={() => setMobileTab('players')}
@@ -681,7 +734,7 @@ export default function App() {
                       messages={chatMessages}
                       onSendMessage={handleSendMessage}
                       isDrawer={room.currentDrawerId === socket.id && room.state === 'DRAWING'}
-                      hasGuessed={room.players?.find((p) => p.id === socket.id)?.hasGuessed}
+                      hasGuessed={room.players?.find((p) => p.id === socket.id || (p.userId && p.userId === getOrCreateUserId()))?.hasGuessed}
                       disabled={room.state !== 'DRAWING'}
                     />
                   ) : (

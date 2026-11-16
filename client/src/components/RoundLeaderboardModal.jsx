@@ -11,7 +11,7 @@ export default function RoundLeaderboardModal({ data, onClose, myId }) {
     leaderboard = [],
     currentRound = 1,
     maxRounds = 3,
-    delaySeconds = 6,
+    delaySeconds = 3,
   } = data;
 
   const [timeLeft, setTimeLeft] = useState(delaySeconds);

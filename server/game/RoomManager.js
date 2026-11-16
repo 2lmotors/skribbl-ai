@@ -561,10 +561,10 @@ export class RoomManager {
       leaderboard: sortedLeaderboard,
       currentRound: room.currentRound,
       maxRounds: room.settings.maxRounds,
-      delaySeconds: 6,
+      delaySeconds: 3,
     });
 
-    // Passer au tour suivant après 6.5 secondes pour afficher le classement provisoire
+    // Passer au tour suivant après 3.5 secondes pour un enchaînement dynamique
     setTimeout(() => {
       const activePlayers = Array.from(room.players.values()).filter(p => !p.isAi);
       if (activePlayers.length === 0) return;
@@ -583,7 +583,7 @@ export class RoomManager {
       }
 
       this.startTurn(roomId);
-    }, 4500);
+    }, 3500);
   }
 
   endGame(roomId) {
