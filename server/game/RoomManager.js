@@ -1,4 +1,4 @@
-import { getRandomWordChoices, normalizeWord, getLevenshteinDistance } from './words.js';
+import { getRandomWordChoices, isWordMatch, normalizeStrict, normalizeLoose, getLevenshteinDistance } from './words.js';
 import { guessDrawingWithAI } from './aiGuesser.js';
 
 export class RoomManager {
@@ -47,6 +47,9 @@ export class RoomManager {
       lastImageSnapshot: null,
       aiLastGuessTime: 0,
       emptyRoomTimeout: null,
+      drawerReconnectTimeout: null,
+      usedWords: new Set(),
+      messageRateLimits: new Map(),
     };
 
     this.rooms.set(roomId, room);
@@ -79,6 +82,7 @@ export class RoomManager {
     }
 
     if (existingPlayer) {
+      const prevSocketId = existingPlayer.id;
       existingPlayer.id = socket.id;
       existingPlayer.connected = true;
       if (playerInfo.nickname) existingPlayer.nickname = playerInfo.nickname.trim().slice(0, 18);
@@ -90,12 +94,40 @@ export class RoomManager {
         room.hostUserId = userId;
       }
 
+      // Si ce joueur était le dessinateur en cours, annuler le délai de déconnexion et réassigner son ID
+      if (room.currentDrawerId === prevSocketId || room.currentDrawerId === existingPlayer.id) {
+        if (room.drawerReconnectTimeout) {
+          clearTimeout(room.drawerReconnectTimeout);
+          room.drawerReconnectTimeout = null;
+        }
+        room.currentDrawerId = socket.id;
+      }
+
       room.players.set(socket.id, existingPlayer);
       socket.join(roomId);
       socket.roomId = roomId;
 
+      // Si le joueur réintégré est le dessinateur pendant le tour de dessin, lui renvoyer discrètement son mot
+      if (room.currentDrawerId === socket.id && room.state === 'DRAWING' && room.currentWord) {
+        socket.emit('your_secret_word', { word: room.currentWord });
+      }
+
+      // Renvoyer l'historique complet du tableau pour resynchroniser instantanément son écran
+      if (room.canvasActions && room.canvasActions.length > 0) {
+        room.canvasActions.forEach(action => {
+          socket.emit('draw_event', action);
+        });
+      }
+
       this.checkAndAddAiBot(room);
       this.broadcastRoomState(roomId);
+
+      this.broadcastChat(roomId, {
+        sender: 'Système',
+        text: `${existingPlayer.nickname} est de retour ! 👋`,
+        type: 'player_join',
+      });
+
       return room;
     }
 
@@ -168,6 +200,13 @@ export class RoomManager {
     player.connected = false;
     player.disconnectedAt = Date.now();
 
+    // Message bleu alertant immédiatement les autres joueurs
+    this.broadcastChat(roomId, {
+      sender: 'Système',
+      text: `Le joueur ${player.nickname} a quitté la partie`,
+      type: 'player_leave',
+    });
+
     // Vérifier s'il reste des vrais joueurs connectés
     const connectedRealPlayers = Array.from(room.players.values()).filter(p => !p.isAi && p.connected !== false);
 
@@ -193,14 +232,19 @@ export class RoomManager {
       room.hostUserId = connectedRealPlayers[0].userId;
     }
 
-    // Si le joueur qui s'est déconnecté était le dessinateur en cours
-    const playerList = Array.from(room.players.values()).filter(p => !p.isAi && p.connected !== false);
-    const currentDrawer = playerList[room.currentDrawerIndex % playerList.length];
-    if (currentDrawer && currentDrawer.id === socket.id && (room.state === 'DRAWING' || room.state === 'SELECTING_WORD')) {
-      this.endTurn(roomId, 'Le dessinateur a perdu sa connexion.');
-    } else {
-      this.broadcastRoomState(roomId);
+    // Si le joueur qui s'est déconnecté était le dessinateur en cours :
+    // On offre une période de grâce de 20 secondes pour lui permettre de revenir sans perdre son tour !
+    if (room.currentDrawerId === socket.id && (room.state === 'DRAWING' || room.state === 'SELECTING_WORD')) {
+      if (room.drawerReconnectTimeout) clearTimeout(room.drawerReconnectTimeout);
+      room.drawerReconnectTimeout = setTimeout(() => {
+        const d = room.players.get(socket.id);
+        if (!d || d.connected === false) {
+          this.endTurn(roomId, 'Le dessinateur a perdu sa connexion.');
+        }
+      }, 20000);
     }
+
+    this.broadcastRoomState(roomId);
   }
 
   updateSettings(roomId, socketId, newSettings) {
@@ -282,8 +326,8 @@ export class RoomManager {
     // Effacer immédiatement le dessin chez tous les joueurs pour le nouveau tour
     this.io.to(roomId).emit('draw_event', { type: 'clear' });
 
-    // Mots au choix
-    room.wordChoices = getRandomWordChoices(room.settings.category, room.settings.customWords);
+    // Mots au choix sans répétition
+    room.wordChoices = getRandomWordChoices(room.settings.category, room.settings.customWords, room.usedWords);
     room.currentWord = '';
     room.hintMask = '';
 
@@ -311,6 +355,9 @@ export class RoomManager {
     if (room.timer) clearInterval(room.timer);
 
     room.currentWord = word;
+    if (room.usedWords && word) {
+      room.usedWords.add(normalizeStrict(word));
+    }
     room.state = 'DRAWING';
     room.timeRemaining = room.settings.roundDuration;
     room.hintMask = this.generateHintMask(word, 0);
@@ -451,16 +498,36 @@ export class RoomManager {
     const text = (rawText || '').trim();
     if (!text) return;
 
+    // Anti-triche 1 : Rate limiting des propositions pour contrer les bots / spam
+    const now = Date.now();
+    if (!room.messageRateLimits) room.messageRateLimits = new Map();
+    const timestamps = (room.messageRateLimits.get(socketId) || []).filter(t => now - t < 1500);
+    if (timestamps.length >= 3) {
+      this.io.to(socketId).emit('chat_message', {
+        sender: 'Système',
+        text: 'Doucement sur les propositions ! (Anti-triche / anti-spam) ⏳',
+        type: 'system',
+      });
+      return;
+    }
+    timestamps.push(now);
+    room.messageRateLimits.set(socketId, timestamps);
+
     // Si on est en phase de jeu (DRAWING)
     if (room.state === 'DRAWING') {
       const isDrawer = room.currentDrawerId === socketId;
 
-      // Le dessinateur ne peut pas écrire le mot secret
-      if (isDrawer) {
-        if (normalizeWord(text).includes(normalizeWord(room.currentWord))) {
+      // Anti-triche 2 : Le dessinateur ne peut pas écrire le mot secret ni une sous-partie
+      if (isDrawer && room.currentWord) {
+        const strictText = normalizeStrict(text);
+        const strictSecret = normalizeStrict(room.currentWord);
+        const tokens = strictSecret.split(/[^a-z0-9]/).filter(t => t.length >= 3);
+        const leaksSecret = strictText.includes(strictSecret) || tokens.some(t => strictText.includes(t));
+
+        if (leaksSecret) {
           this.io.to(socketId).emit('chat_message', {
             sender: 'Système',
-            text: 'Ne donnez pas d\'indice sur le mot ! 🤫',
+            text: 'Ne donnez pas d\'indice sur le mot secret dans le chat ! 🤫 (Anti-triche)',
             type: 'system',
           });
           return;
@@ -478,11 +545,8 @@ export class RoomManager {
         return;
       }
 
-      // Vérification de la réponse
-      const normalizedGuess = normalizeWord(text);
-      const normalizedSecret = normalizeWord(room.currentWord);
-
-      if (normalizedGuess === normalizedSecret && !isDrawer) {
+      // Vérification de la réponse : accepte sans accent, sans tiret, ou avec espace à la place du tiret
+      if (isWordMatch(text, room.currentWord) && !isDrawer) {
         // Bonne réponse !
         player.hasGuessed = true;
 
@@ -525,7 +589,7 @@ export class RoomManager {
       }
 
       // Détection de proximité ("Tu chauffes !")
-      const distance = getLevenshteinDistance(normalizedGuess, normalizedSecret);
+      const distance = getLevenshteinDistance(text, room.currentWord);
       if (distance === 1 && !isDrawer) {
         this.io.to(socketId).emit('chat_message', {
           sender: 'Système',

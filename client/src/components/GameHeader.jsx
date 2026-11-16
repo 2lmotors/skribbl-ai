@@ -58,8 +58,17 @@ export default function GameHeader({
             <span className="text-[9px] sm:text-[10px] uppercase tracking-wider text-slate-400 block leading-none">
               Le mot était :
             </span>
-            <span className="text-xs sm:text-lg font-black text-emerald-400 uppercase tracking-widest break-words leading-tight block">
-              {secretWord}
+            <span className="text-xs sm:text-lg font-black uppercase tracking-widest break-words leading-tight block">
+              {(secretWord || '').split('-').map((part, i, arr) => (
+                <React.Fragment key={i}>
+                  <span className="text-emerald-400">{part}</span>
+                  {i < arr.length - 1 && (
+                    <span className="text-rose-500 font-black text-sm sm:text-2xl px-1 animate-pulse drop-shadow-[0_0_8px_rgba(244,63,94,0.9)]">
+                      -
+                    </span>
+                  )}
+                </React.Fragment>
+              ))}
             </span>
           </div>
         ) : isDrawer && secretWord ? (
@@ -67,17 +76,55 @@ export default function GameHeader({
             <span className="text-[9px] sm:text-[10px] uppercase tracking-wider text-indigo-400 block font-semibold leading-none">
               Tu dessines :
             </span>
-            <span className="text-xs sm:text-lg font-black text-white uppercase tracking-wider break-words leading-tight block">
-              {secretWord}
+            <span className="text-xs sm:text-lg font-black uppercase tracking-wider break-words leading-tight block">
+              {secretWord.split('-').map((part, i, arr) => (
+                <React.Fragment key={i}>
+                  <span className="text-white">{part}</span>
+                  {i < arr.length - 1 && (
+                    <span className="text-rose-500 font-black text-sm sm:text-2xl px-1 animate-pulse drop-shadow-[0_0_8px_rgba(244,63,94,0.9)]">
+                      -
+                    </span>
+                  )}
+                </React.Fragment>
+              ))}
             </span>
           </div>
         ) : (
           <div>
-            <span className="text-sm sm:text-2xl font-black font-mono tracking-[0.2em] sm:tracking-[0.3em] text-white truncate block">
-              {hintMask || '_ _ _ _'}
-            </span>
+            <div className="flex items-center justify-center flex-wrap gap-1 leading-none">
+              {hintMask ? (
+                hintMask.split(' ').map((token, i) => {
+                  if (token === '-') {
+                    return (
+                      <span
+                        key={i}
+                        className="text-rose-500 font-black text-base sm:text-2xl px-1 animate-pulse drop-shadow-[0_0_8px_rgba(244,63,94,0.9)]"
+                        title="Trait d'union"
+                      >
+                        -
+                      </span>
+                    );
+                  }
+                  return (
+                    <span
+                      key={i}
+                      className="text-sm sm:text-2xl font-black font-mono text-white tracking-wider"
+                    >
+                      {token}
+                    </span>
+                  );
+                })
+              ) : (
+                <span className="text-sm sm:text-2xl font-black font-mono tracking-[0.2em] sm:tracking-[0.3em] text-white">
+                  _ _ _ _
+                </span>
+              )}
+            </div>
             <span className="text-[9px] text-slate-400 block leading-none mt-0.5">
               {hintMask ? `${hintMask.replace(/[^A-Za-zÀ-ÿ_]/g, '').length} lettres` : ''}
+              {hintMask && hintMask.includes('-') && (
+                <span className="ml-1 text-rose-400 font-bold">(avec trait d'union -)</span>
+              )}
             </span>
           </div>
         )}

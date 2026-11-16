@@ -19,8 +19,11 @@ export const CLIENT_WORDS = {
     "nez", "yeux", "main", "gateau", "jus", "carotte", "lait", "pain", "boite", "tasse",
     "bol", "cuillere", "fenetre", "sac", "robe", "pantalon", "canard", "vache", "cochon", "mouton",
     "cheval", "singe", "tortue", "grenouille", "papillon", "coeur", "crayon", "bague", "nuage", "pluie",
-    "neige", "echelle", "roue", "cloche", "oeuf", "fourchette", "bougie", "glace", "toboggan", "balancoire",
-    "bateau", "avion", "poire", "fraise", "biberon", "poupee", "doudou"
+    "neige", "echelle", "roue", "cloche", "oeuf", "fourchette", "bougie", "glace", "toboggan", "balançoire",
+    "bateau", "avion", "poire", "fraise", "biberon", "poupee", "doudou", "brosse a dents", "savon", "serviette",
+    "souris", "lapin", "poule", "poussin", "caneton", "fromage", "soupe", "salade", "tomate", "patate",
+    "camion", "tracteur", "moto", "brouette", "seau", "pelle", "château de sable", "cerf-volant", "bonnet",
+    "echarpe", "bottes", "parapluie", "tapis", "horloge", "miroir", "peigne", "biberon", "berceau", "chuchotement"
   ],
   kids_7_9: [
     "chateau", "dauphin", "helicoptere", "astronaute", "pirate", "licorne", "dinosaure", "requin", "tambour", "volcan",
@@ -28,37 +31,55 @@ export const CLIENT_WORDS = {
     "panda", "hibou", "magicien", "princesse", "chevalier", "monstre", "fantome", "robot", "sirene", "fusee",
     "phare", "tente", "skateboard", "jumelles", "labyrinthe", "cartable", "microscope", "parachute", "sous-marin", "igloo",
     "montgolfiere", "moulin", "cascade", "arc-en-ciel", "patins", "flute", "accordeon", "violon", "pizza", "hamburger",
-    "croissant", "crepe", "baguette magique", "tapis volant", "dragon", "bouclier", "epee", "potion", "chameau", "perroquet"
+    "croissant", "crepe", "baguette magique", "tapis volant", "dragon", "bouclier", "epee", "potion", "chameau", "perroquet",
+    "koala", "cameleon", "ecureuil", "herisson", "castor", "flamant rose", "hippopotame", "crocodile", "chauve-souris", "loup",
+    "porte-monnaie", "château-fort", "pique-nique", "casse-noisette", "taille-crayon", "lance-pierre", "garde-boue", "cloche-pied",
+    "fer-a-cheval", "arc-et-fleche", "balle de tennis", "raquette", "panier de basket", "but de foot", "medaille", "trophée",
+    "patinoire", "trampoline", "boule de neige", "bonhomme de neige", "igloo", "feu de camp", "marshmallow", "cabane dans les arbres"
   ],
   teens_10_14: [
     "manette", "trottinette", "youtubeur", "selfie", "casque audio", "smartphone", "manga", "streaming", "hoverboard", "sneakers",
     "hoodie", "smoothie", "kebab", "emoji", "wifi", "drone", "cosplay", "console", "clavier gamer", "microphone",
     "pixel", "bluetooth", "skateboard", "roller", "bubble tea", "popcorn", "streamer", "challenge", "playlist", "avatar",
     "escape game", "laser game", "roller coaster", "street art", "graffiti", "beatbox", "casquette", "airpods", "carte graphique",
-    "powerbank", "stickers", "tatouage", "sweat", "anime", "pikachu", "spiderman", "batman", "sabrelaser", "mario", "minecraft"
+    "powerbank", "stickers", "tatouage", "piercing", "sweat", "anime", "pikachu", "spiderman", "batman", "superman",
+    "iron man", "star wars", "sabrelaser", "zelda", "mario", "minecraft", "creeper", "sonic", "fortnite", "battle royale",
+    "ninja", "samourai", "viking", "zombie", "alien", "cyborg", "vaisseau spatial", "hologramme", "auto-tamponneuse", "casque-vr",
+    "trottinette-electrique", "roller-blade", "parc d attraction", "salle d arcade", "karaoke", "ring de boxe", "skatepark"
   ],
   adults: [
     "pendule", "hypotheque", "nostalgie", "somnambule", "labyrinthe", "crepuscule", "eclipse", "sablier", "boussole", "bousculade",
     "thermometre", "cafetiere", "kaleidoscope", "trampoline", "sarcophage", "parachute", "telecommande", "boomerang", "origami", "karaoke",
     "saxophone", "clarinette", "contrebasse", "barometre", "girouette", "rond-point", "sommelier", "vitrail", "amphitheatre", "catacombes",
-    "tour eiffel", "arc de triomphe", "colisee", "pyramide", "sphinx", "tour de pise", "big ben", "taj mahal", "gondole", "embouteillage"
+    "statue de la liberte", "tour eiffel", "arc de triomphe", "colisee", "pyramide", "sphinx", "tour de pise", "big ben", "taj mahal", "gondole",
+    "embouteillage", "parcmetre", "brouette", "tondeuse", "tronconneuse", "perceuse", "echafaudage", "gruyere", "raclette", "fondue",
+    "caviar", "champagne", "cocktail", "mojito", "cigare", "pipe", "narguile", "brouillard", "avalanche", "tsunami",
+    "tornade", "seisme", "meteorite", "aurore boreale", "constellation", "voie lactee", "galaxie", "trou noir", "horloge comtoise", "gramophone",
+    "croque-monsieur", "tire-bouchon", "court-circuit", "abat-jour", "coffre-fort", "essuie-glace", "gratte-ciel", "porte-cles",
+    "garde-manger", "wagon-lit", "garde-fou", "tourne-disque", "haut-parleur", "micro-ondes", "seche-cheveux", "rouge-gorge", "poisson-clown"
   ],
   professionnel: [
     "stethoscope", "scalpel", "architecte", "echafaudage", "brancard", "chirurgien", "mecanicien", "electricien", "plombier", "geometre",
-    "soudeur", "apiculteur", "archeologue", "veterinaire", "ebeniste", "notaire", "comptable", "pilote de ligne", "aiguilleur", "grutier",
-    "macon", "traducteur", "sommelier", "torrefacteur", "joaillier", "taxidermiste", "cardiologue", "anesthesiste", "topographe", "horloger"
+    "soudeur", "apiculteur", "archeologue", "veterinaire", "ebeniste", "notaire", "comptable", "pilote de ligne", "aiguilleur du ciel", "grutier",
+    "macon", "traducteur", "sommelier", "torrefacteur", "joaillier", "taxidermiste", "cardiologue", "anesthesiste", "topographe", "serrurier",
+    "sapeur-pompier", "garde-forestier", "aide-soignant", "sage-femme", "chirurgien-dentiste", "chef-cuisinier", "conducteur de train"
   ],
   scientifique: [
     "microscope", "telescope", "molecule", "atome", "eprouvette", "gravite", "cellule", "sismographe", "centrifugeuse", "fossile",
     "superconducteur", "accelerateur de particules", "asteroide", "comete", "magnetisme", "chromosome", "adn", "prisme", "diffraction", "equation",
-    "pipette", "becher", "bec bunsen", "thermometre", "electrode", "cristal", "photosynthese", "bioluminescence", "antimatiere", "laser"
+    "pipette", "becher", "bec bunsen", "thermometre", "electrode", "cristal", "photosynthese", "bioluminescence", "antimatiere", "laser",
+    "rayon-x", "trou-noir", "super-nova", "etoile-filante", "micro-organisme", "anti-matiere"
   ],
   coquin: [
     "lingerie", "dentelle", "jarretiere", "menottes", "porte-jarretelles", "decollete", "baiser passionne", "preliminaires", "massage sensuel", "caresse",
     "lit a baldaquin", "draps de satin", "nuisette", "string", "boxer", "bikini", "sauna", "jacuzzi", "huile de massage", "plume de caresse",
-    "bandeau sur les yeux", "bougie parfumee", "fessee coquine", "calin fougueux", "frisson", "rouge a levres", "talons aiguilles", "deshabille", "strip-tease", "pole dance"
+    "bandeau sur les yeux", "bougie parfumee", "fessee coquine", "calin fougueux", "frisson", "rouge a levres", "talons aiguilles", "deshabille",
+    "peignoir de soie", "bain moussant", "strip-tease", "pole dance", "chuchotement", "morsure", "regard de braise", "dessous coquins", "corset"
   ]
 };
+
+// Ensemble de mots déjà tirés pour le mode Solo pour éviter les répétitions
+const usedSoloWords = new Set();
 
 export function getWordForCategory(categoryId = 'all') {
   let list = [];
@@ -70,5 +91,15 @@ export function getWordForCategory(categoryId = 'all') {
   } else {
     list = CLIENT_WORDS[categoryId];
   }
-  return list[Math.floor(Math.random() * list.length)];
+
+  // Filtrer les mots déjà apparus
+  let available = list.filter(w => !usedSoloWords.has(w.toLowerCase()));
+  if (available.length === 0) {
+    usedSoloWords.clear();
+    available = list;
+  }
+
+  const chosen = available[Math.floor(Math.random() * available.length)];
+  usedSoloWords.add(chosen.toLowerCase());
+  return chosen;
 }

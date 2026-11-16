@@ -21,7 +21,23 @@ export default function WordSelector({ choices, timeout = 15, onSelect }) {
               onClick={() => onSelect(word)}
               className="py-4 px-6 bg-slate-800 hover:bg-indigo-600 active:scale-98 border border-slate-700 hover:border-indigo-400 rounded-2xl text-lg font-bold capitalize transition duration-150 shadow-md hover:shadow-indigo-500/20 flex items-center justify-between group"
             >
-              <span>{word}</span>
+              <span className="flex items-center gap-1">
+                {word.split('-').map((part, i, arr) => (
+                  <React.Fragment key={i}>
+                    <span>{part}</span>
+                    {i < arr.length - 1 && (
+                      <span className="text-rose-500 font-black text-xl px-0.5 animate-pulse drop-shadow-[0_0_8px_rgba(244,63,94,0.9)]">
+                        -
+                      </span>
+                    )}
+                  </React.Fragment>
+                ))}
+                {word.includes('-') && (
+                  <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-950/80 text-rose-300 border border-rose-500/50">
+                    avec tiret -
+                  </span>
+                )}
+              </span>
               <span className="text-xs text-slate-400 group-hover:text-white uppercase font-mono px-2 py-1 bg-slate-900/50 rounded-lg">
                 {word.length} lettres
               </span>

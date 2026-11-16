@@ -20,12 +20,15 @@ export default function PlayerList({
         {sortedPlayers.map((player, idx) => {
           const isMe = player.id === myId || (player.userId && player.userId === myId);
           const isDrawer = player.id === currentDrawerId;
+          const isDisconnected = player.connected === false;
 
           return (
             <div
               key={player.id}
               className={`p-2 rounded-xl flex items-center justify-between transition border ${
-                player.hasGuessed
+                isDisconnected
+                  ? 'bg-slate-900/60 border-slate-800 opacity-40 grayscale'
+                  : player.hasGuessed
                   ? 'bg-emerald-950/40 border-emerald-500/40'
                   : isDrawer
                   ? 'bg-indigo-950/50 border-indigo-500/50 shadow-sm'
@@ -55,6 +58,11 @@ export default function PlayerList({
                     {player.isAi && (
                       <span className="px-1.5 py-0.2 bg-amber-500/20 text-amber-300 text-[10px] rounded font-semibold shrink-0">
                         IA
+                      </span>
+                    )}
+                    {isDisconnected && (
+                      <span className="px-1.5 py-0.2 bg-sky-950/80 border border-sky-500/40 text-sky-300 text-[9px] rounded font-bold shrink-0">
+                        Déco
                       </span>
                     )}
                   </div>

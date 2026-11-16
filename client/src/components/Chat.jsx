@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, CheckCircle2, Flame, Bot } from 'lucide-react';
+import { Send, CheckCircle2, Flame, Bot, UserMinus, UserPlus } from 'lucide-react';
 import { sound } from '../utils/sound.js';
 
 export default function Chat({
@@ -53,6 +53,30 @@ export default function Chat({
                 className="py-0.5 px-2 rounded-lg bg-indigo-950/50 border border-indigo-900/40 text-[11px] text-indigo-300 font-medium text-center"
               >
                 {msg.text}
+              </div>
+            );
+          }
+
+          if (msg.type === 'player_leave') {
+            return (
+              <div
+                key={idx}
+                className="py-1 px-2.5 rounded-xl bg-sky-950/80 border border-sky-500/50 text-xs text-sky-300 font-bold flex items-center justify-center gap-1.5 shadow-sm"
+              >
+                <UserMinus className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                <span>{msg.text}</span>
+              </div>
+            );
+          }
+
+          if (msg.type === 'player_join') {
+            return (
+              <div
+                key={idx}
+                className="py-1 px-2.5 rounded-xl bg-emerald-950/60 border border-emerald-500/50 text-xs text-emerald-300 font-bold flex items-center justify-center gap-1.5 shadow-sm"
+              >
+                <UserPlus className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                <span>{msg.text}</span>
               </div>
             );
           }

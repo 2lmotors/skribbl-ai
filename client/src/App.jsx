@@ -156,8 +156,14 @@ export default function App() {
 
   // Écouteurs Socket.io
   useEffect(() => {
+    let disconnectTimeout = null;
+
     socket.on('connect', () => {
       console.log('Connecté au serveur Socket.io avec ID:', socket.id);
+      if (disconnectTimeout) {
+        clearTimeout(disconnectTimeout);
+        disconnectTimeout = null;
+      }
       // Reconnexion automatique si on était déjà dans un salon (ex: retour de WhatsApp ou mise en veille)
       const activeCode = currentRoomCodeRef.current || sessionStorage.getItem('CURRENT_ROOM_CODE');
       if (activeCode) {
@@ -167,6 +173,21 @@ export default function App() {
           userId: getOrCreateUserId(),
           nickname: savedNick,
         });
+      }
+    });
+
+    // Auto-récupération sur bug de connexion : si déconnecté pendant plus de 7s en partie active, rafraîchir
+    socket.on('disconnect', (reason) => {
+      console.warn('Socket déconnecté:', reason);
+      const activeCode = currentRoomCodeRef.current || sessionStorage.getItem('CURRENT_ROOM_CODE');
+      if (activeCode) {
+        if (disconnectTimeout) clearTimeout(disconnectTimeout);
+        disconnectTimeout = setTimeout(() => {
+          if (!socket.connected) {
+            console.log('Connexion interrompue: rafraîchissement automatique pour relancer...');
+            window.location.reload();
+          }
+        }, 7000);
       }
     });
 
@@ -252,7 +273,9 @@ export default function App() {
     });
 
     return () => {
+      if (disconnectTimeout) clearTimeout(disconnectTimeout);
       socket.off('connect');
+      socket.off('disconnect');
       socket.off('room_created');
       socket.off('room_state');
       socket.off('chat_message');

@@ -272,8 +272,17 @@ export default function SoloAIMode({
         <span className="text-[10px] sm:text-xs uppercase font-extrabold text-indigo-300 tracking-wider shrink-0">
           Mot à dessiner :
         </span>
-        <span className="text-sm sm:text-xl font-black text-white uppercase tracking-wider break-words">
-          {currentWord}
+        <span className="text-sm sm:text-xl font-black uppercase tracking-wider break-words flex items-center gap-0.5">
+          {currentWord.split('-').map((part, i, arr) => (
+            <React.Fragment key={i}>
+              <span className="text-white">{part}</span>
+              {i < arr.length - 1 && (
+                <span className="text-rose-500 font-black text-base sm:text-2xl px-1 animate-pulse drop-shadow-[0_0_8px_rgba(244,63,94,0.9)]">
+                  -
+                </span>
+              )}
+            </React.Fragment>
+          ))}
         </span>
       </div>
 
