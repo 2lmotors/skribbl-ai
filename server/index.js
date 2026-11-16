@@ -8,7 +8,7 @@ import os from 'os';
 import { fileURLToPath } from 'url';
 import { RoomManager } from './game/RoomManager.js';
 import { guessDrawingWithAI } from './game/aiGuesser.js';
-import { WORD_CATEGORIES } from './game/words.js';
+import { WORD_CATEGORIES, getRandomWord } from './game/words.js';
 
 dotenv.config();
 
@@ -153,6 +153,16 @@ io.on('connection', (socket) => {
   socket.on('solo_ai_guess', async ({ imageBase64, currentWord, apiKey }) => {
     const result = await guessDrawingWithAI({ imageBase64, currentWord, apiKey });
     socket.emit('solo_ai_result', result);
+  });
+
+  // Obtenir un mot aléatoire par catégorie
+  socket.on('get_solo_word', ({ category }, callback) => {
+    const word = getRandomWord(category || 'all');
+    if (typeof callback === 'function') {
+      callback({ word });
+    } else {
+      socket.emit('solo_word_result', { word });
+    }
   });
 
   // Déconnexion

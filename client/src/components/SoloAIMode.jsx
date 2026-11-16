@@ -7,49 +7,132 @@ import {
   CheckCircle2, 
   ArrowLeft, 
   Settings, 
-  Lightbulb,
-  SendHorizontal
+  Clock,
+  Trophy,
+  Award,
+  Zap,
+  RotateCcw
 } from 'lucide-react';
 import Canvas from './Canvas.jsx';
 import Toolbar from './Toolbar.jsx';
 import { sound } from '../utils/sound.js';
 import { socket } from '../utils/socket.js';
+import { AGE_CATEGORIES, getWordForCategory } from '../utils/words.js';
 
-const SOLO_WORDS = [
-  "chat", "pizza", "maison", "avion", "guitare", "fusée", "voiture", "pomme",
-  "chien", "soleil", "arbre", "vélo", "chapeau", "lunettes", "poisson", "bateau",
-  "papillon", "dinosaure", "montagne", "robot", "hamburger", "football", "cloche"
-];
-
-export default function SoloAIMode({ onBack, onOpenSettings }) {
+export default function SoloAIMode({ 
+  onBack, 
+  onOpenSettings,
+  initialCategory = 'all',
+  initialRounds = 3,
+  initialDuration = 60
+}) {
+  // Paramètres de session Solo
+  const [category, setCategory] = useState(initialCategory);
+  const [totalRounds, setTotalRounds] = useState(initialRounds);
+  const [roundDuration, setRoundDuration] = useState(initialDuration);
+  
+  // État du jeu
+  const [currentRound, setCurrentRound] = useState(1);
+  const [totalScore, setTotalScore] = useState(0);
+  const [roundScore, setRoundScore] = useState(0);
   const [currentWord, setCurrentWord] = useState('');
+  const [timeLeft, setTimeLeft] = useState(initialDuration);
+  const [isRoundActive, setIsRoundActive] = useState(true);
+  const [isGameOver, setIsGameOver] = useState(false);
+  const [wonRoundsCount, setWonRoundsCount] = useState(0);
+
+  // Outils de dessin
   const [activeTool, setActiveTool] = useState('brush');
   const [activeColor, setActiveColor] = useState('#000000');
   const [brushSize, setBrushSize] = useState(8);
   const [lastSnapshot, setLastSnapshot] = useState(null);
+  const [clearTrigger, setClearTrigger] = useState(0);
+
+  // État de l'IA
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [aiGuesses, setAiGuesses] = useState([]);
-  const [aiComment, setAiComment] = useState('Dessine quelque chose, je suis prêt à deviner !');
-  const [hasWon, setHasWon] = useState(false);
-  const [clearTrigger, setClearTrigger] = useState(0);
-  const [attempts, setAttempts] = useState(0);
+  const [aiComment, setAiComment] = useState('Dessine ! J\'observe en direct pour deviner...');
+  const [hasWonCurrentRound, setHasWonCurrentRound] = useState(false);
 
-  // Choisir un mot au hasard au démarrage
-  const pickRandomWord = () => {
-    const word = SOLO_WORDS[Math.floor(Math.random() * SOLO_WORDS.length)];
-    setCurrentWord(word);
-    setHasWon(false);
+  const autoAnalyzeTimerRef = useRef(null);
+  const isAnalyzingRef = useRef(false);
+  const hasWonRef = useRef(false);
+  const currentWordRef = useRef('');
+
+  isAnalyzingRef.current = isAnalyzing;
+  hasWonRef.current = hasWonCurrentRound;
+  currentWordRef.current = currentWord;
+
+  // Initialisation ou changement de manche
+  const startNewRound = (roundNumber = 1) => {
+    const nextWord = getWordForCategory(category);
+    setCurrentWord(nextWord);
+    setCurrentRound(roundNumber);
+    setTimeLeft(roundDuration);
+    setHasWonCurrentRound(false);
+    setIsRoundActive(true);
+    setRoundScore(0);
     setAiGuesses([]);
-    setAiComment('C\'est parti ! Commence à dessiner ton mot.');
-    setAttempts(0);
+    setAiComment('C\'est parti ! Je regarde tes traits en direct...');
     setClearTrigger(prev => prev + 1);
   };
 
   useEffect(() => {
-    pickRandomWord();
-  }, []);
+    startNewRound(1);
+  }, [category, roundDuration]);
 
-  // Écouter les résultats de l'IA venant du serveur
+  // Chronomètre de manche
+  useEffect(() => {
+    if (!isRoundActive || hasWonCurrentRound || isGameOver) return;
+
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          handleTimeOut();
+          return 0;
+        }
+
+        // Tic-tac accéléré stressant sur les 10 dernières secondes
+        if (prev - 1 <= 10) {
+          sound.playTick(prev - 1);
+        }
+
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [isRoundActive, hasWonCurrentRound, isGameOver]);
+
+  // Détection du temps écoulé
+  const handleTimeOut = () => {
+    setIsRoundActive(false);
+    setAiComment(`Temps écoulé ! Le mot à deviner était : "${currentWord.toUpperCase()}".`);
+    sound.playClose();
+
+    // Passer à la manche suivante après 3.5 secondes
+    setTimeout(() => {
+      if (currentRound < totalRounds) {
+        startNewRound(currentRound + 1);
+      } else {
+        finishGame();
+      }
+    }, 3800);
+  };
+
+  // Fin de la partie complète
+  const finishGame = () => {
+    setIsGameOver(true);
+    sound.playVictory();
+    confetti({
+      particleCount: 100,
+      spread: 70,
+      origin: { y: 0.6 }
+    });
+  };
+
+  // Réception des réponses de l'IA
   useEffect(() => {
     const handleAiResult = (result) => {
       setIsAnalyzing(false);
@@ -62,19 +145,34 @@ export default function SoloAIMode({ onBack, onOpenSettings }) {
       }
 
       // Vérifier si l'IA a trouvé le mot
-      const normalizedSecret = currentWord.toLowerCase().trim();
+      const normalizedSecret = (currentWordRef.current || '').toLowerCase().trim();
       const found = guesses.some(g => g.toLowerCase().trim() === normalizedSecret);
 
-      if (found) {
-        setHasWon(true);
+      if (found && !hasWonRef.current && isRoundActive) {
+        setHasWonCurrentRound(true);
+        setIsRoundActive(false);
+
+        // Calcul des points basé sur le temps restant
+        const points = Math.max(120, Math.round(100 + (timeLeft / roundDuration) * 400));
+        setRoundScore(points);
+        setTotalScore(prev => prev + points);
+        setWonRoundsCount(prev => prev + 1);
+
         sound.playCorrect();
         confetti({
-          particleCount: 80,
-          spread: 70,
+          particleCount: 70,
+          spread: 60,
           origin: { y: 0.6 }
         });
-      } else {
-        sound.playPop();
+
+        // Passer à la manche suivante après 3.5 secondes
+        setTimeout(() => {
+          if (currentRound < totalRounds) {
+            startNewRound(currentRound + 1);
+          } else {
+            finishGame();
+          }
+        }, 3600);
       }
     };
 
@@ -82,187 +180,233 @@ export default function SoloAIMode({ onBack, onOpenSettings }) {
     return () => {
       socket.off('solo_ai_result', handleAiResult);
     };
-  }, [currentWord]);
+  }, [roundDuration, timeLeft, isRoundActive, currentRound, totalRounds]);
 
-  // Demander à l'IA d'analyser le dessin
-  const triggerAiGuess = () => {
-    if (!lastSnapshot || isAnalyzing || hasWon) return;
+  // Analyse automatique du dessin dès que l'utilisateur dessine
+  const handleSnapshotReady = (dataUrl) => {
+    setLastSnapshot(dataUrl);
+
+    // Déclencher automatiquement l'analyse sans que le joueur ait à cliquer
+    if (isAnalyzingRef.current || hasWonRef.current || !isRoundActive) return;
+
+    if (autoAnalyzeTimerRef.current) {
+      clearTimeout(autoAnalyzeTimerRef.current);
+    }
+
+    // Déclenchement automatique 1.4s après le tracé
+    autoAnalyzeTimerRef.current = setTimeout(() => {
+      triggerAiGuess(dataUrl);
+    }, 1400);
+  };
+
+  // Fonction d'envoi vers l'IA
+  const triggerAiGuess = (snap) => {
+    const imageToSend = snap || lastSnapshot;
+    if (!imageToSend || isAnalyzingRef.current || hasWonRef.current || !isRoundActive) return;
 
     setIsAnalyzing(true);
-    setAttempts(prev => prev + 1);
-
     const apiKey = localStorage.getItem('GEMINI_API_KEY') || '';
 
     socket.emit('solo_ai_guess', {
-      imageBase64: lastSnapshot,
-      currentWord,
+      imageBase64: imageToSend,
+      currentWord: currentWordRef.current,
       apiKey,
     });
   };
 
+  // Styles d'urgence du chrono
+  const isUrgent = timeLeft <= 10 && timeLeft > 0;
+  const isCritical = timeLeft <= 5 && timeLeft > 0;
+  const timerStyle = isCritical
+    ? 'text-white bg-rose-600 border-rose-400 animate-bounce ring-2 ring-rose-500'
+    : isUrgent
+    ? 'text-rose-400 bg-rose-950/90 border-rose-500 animate-pulse-fast'
+    : timeLeft <= 20
+    ? 'text-amber-400 bg-amber-950/60 border-amber-500/50'
+    : 'text-indigo-300 bg-slate-900 border-slate-700';
+
   return (
-    <div className="max-w-5xl mx-auto flex flex-col gap-3 min-h-[90vh]">
-      {/* En-tête du Mode Solo */}
-      <header className="bg-slate-900/95 backdrop-blur border border-slate-700/80 rounded-2xl p-3 shadow-xl flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
+    <div className="h-[100dvh] max-h-[100dvh] w-full flex flex-col justify-between overflow-hidden bg-slate-950 p-1 sm:p-2.5 select-none">
+      {/* 1. HEADER ULTRA-COMPACT (Hauteur ~44px) */}
+      <header className="bg-slate-900/90 backdrop-blur border border-slate-800 rounded-xl px-2.5 py-1.5 flex items-center justify-between gap-2 shrink-0 shadow-md">
+        <div className="flex items-center gap-1.5 min-w-0">
           <button
             onClick={onBack}
-            className="p-2 text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-xl transition"
-            title="Retour au menu"
+            className="p-1.5 text-slate-300 hover:text-white bg-slate-800 rounded-lg transition shrink-0"
+            title="Quitter"
           >
-            <ArrowLeft className="w-5 h-5" />
+            <ArrowLeft className="w-4 h-4" />
           </button>
-          <div>
-            <div className="flex items-center gap-2">
-              <Bot className="w-5 h-5 text-amber-400" />
-              <h2 className="text-sm font-bold text-white">Défi Solo contre l'IA</h2>
-            </div>
-            <p className="text-[11px] text-slate-400">L'IA essaie de deviner ce que tu dessines</p>
+          
+          {/* Manche */}
+          <div className="px-2 py-0.5 bg-slate-950 rounded-lg border border-slate-800 text-[11px] font-bold text-slate-300 shrink-0">
+            {currentRound}/{totalRounds}
+          </div>
+
+          {/* Score Virtuel */}
+          <div className="px-2 py-0.5 bg-indigo-950/60 border border-indigo-500/40 rounded-lg text-[11px] font-extrabold text-indigo-300 flex items-center gap-1 shrink-0">
+            <Trophy className="w-3 h-3 text-amber-400" />
+            <span>{totalScore} pts</span>
           </div>
         </div>
 
-        {/* Mot à dessiner */}
-        <div className="bg-indigo-950/60 border border-indigo-500/40 px-4 py-1.5 rounded-xl text-center">
-          <span className="text-[10px] uppercase font-bold text-indigo-400 block">
-            Mot à dessiner
+        {/* Mot cible à dessiner (Centre) */}
+        <div className="bg-gradient-to-r from-pink-500/20 via-indigo-500/20 to-purple-500/20 border border-indigo-400/40 px-3 py-1 rounded-xl text-center min-w-0">
+          <span className="text-[9px] uppercase tracking-wider text-indigo-300 font-bold block leading-none">
+            Dessine :
           </span>
-          <span className="text-base md:text-xl font-black text-white uppercase tracking-wider">
+          <span className="text-sm sm:text-base font-black text-white uppercase tracking-wider truncate block">
             {currentWord}
           </span>
         </div>
 
-        <div className="flex items-center gap-1.5">
-          <button
-            onClick={pickRandomWord}
-            title="Changer de mot"
-            className="p-2 text-indigo-300 hover:text-white bg-indigo-950/50 hover:bg-indigo-900/60 border border-indigo-700/40 rounded-xl transition flex items-center gap-1 text-xs font-semibold"
-          >
-            <RotateCw className="w-4 h-4" />
-            <span className="hidden sm:inline">Nouveau mot</span>
-          </button>
+        {/* Chronomètre & Options */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <div className={`px-2 py-1 rounded-lg border font-mono font-black text-xs sm:text-sm flex items-center gap-1 ${timerStyle}`}>
+            <Clock className={`w-3.5 h-3.5 ${isUrgent ? 'animate-spin' : ''}`} />
+            <span>{timeLeft}s</span>
+          </div>
+
           <button
             onClick={onOpenSettings}
+            className="p-1.5 text-slate-400 hover:text-white bg-slate-800 rounded-lg transition"
             title="Réglages"
-            className="p-2 text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-xl transition border border-slate-700"
           >
-            <Settings className="w-5 h-5" />
+            <Settings className="w-4 h-4" />
           </button>
         </div>
       </header>
 
-      {/* Zone de jeu : Canvas + Panneau IA */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-3 flex-1">
-        {/* Canvas et Outils */}
-        <div className="lg:col-span-3 flex flex-col gap-2">
+      {/* 2. ZONE DE DESSIN CENTRALE (Flex-1, s'adapte sans dépasser) */}
+      <div className="flex-1 min-h-0 flex flex-col justify-center items-center py-1 overflow-hidden">
+        <div className="w-full h-full max-h-[58vh] sm:max-h-[62vh] flex items-center justify-center">
           <Canvas
             key={clearTrigger}
-            isDrawer={true}
+            isDrawer={isRoundActive && !hasWonCurrentRound}
             activeTool={activeTool}
             activeColor={activeColor}
             brushSize={brushSize}
-            onSnapshotReady={(snap) => setLastSnapshot(snap)}
-          />
-
-          <Toolbar
-            activeTool={activeTool}
-            setActiveTool={setActiveTool}
-            activeColor={activeColor}
-            setActiveColor={setActiveColor}
-            brushSize={brushSize}
-            setBrushSize={setBrushSize}
-            onUndo={() => {}}
-            onClear={() => setClearTrigger(prev => prev + 1)}
-            isDrawer={true}
+            onSnapshotReady={handleSnapshotReady}
           />
         </div>
+      </div>
 
-        {/* Panneau latéral de l'IA */}
-        <div className="flex flex-col gap-3">
-          <div className="bg-slate-900/95 backdrop-blur border border-slate-700/80 rounded-2xl p-4 shadow-xl flex-1 flex flex-col justify-between">
-            <div>
-              {/* Statut IA */}
-              <div className="flex items-center gap-2 mb-3 pb-3 border-b border-slate-800">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-indigo-600 flex items-center justify-center shadow-md">
-                  <Bot className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-sm text-white">Gemini Vision AI</h4>
-                  <span className="text-[11px] text-emerald-400 font-medium">
-                    {isAnalyzing ? 'Analyse du dessin en cours...' : 'Prête à deviner'}
-                  </span>
-                </div>
-              </div>
+      {/* 3. BARRE D'OUTILS COMPACTE (Hauteur ~46px) */}
+      <div className="shrink-0 mb-1">
+        <Toolbar
+          activeTool={activeTool}
+          setActiveTool={setActiveTool}
+          activeColor={activeColor}
+          setActiveColor={setActiveColor}
+          brushSize={brushSize}
+          setBrushSize={setBrushSize}
+          onUndo={() => {}}
+          onClear={() => setClearTrigger(prev => prev + 1)}
+          isDrawer={isRoundActive && !hasWonCurrentRound}
+        />
+      </div>
 
-              {/* Bulle de dialogue de l'IA */}
-              <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-3.5 mb-4 relative text-sm text-slate-200 leading-relaxed shadow-inner">
-                <div className="text-xs font-semibold text-amber-400 mb-1 flex items-center gap-1">
-                  <Sparkles className="w-3.5 h-3.5" />
-                  Réaction de l'IA :
-                </div>
-                <p className="italic">"{aiComment}"</p>
-              </div>
+      {/* 4. DOCK IA EN DIRECT (Hauteur ~68px, l'IA devine automatiquement !) */}
+      <footer className="bg-slate-900/95 backdrop-blur border border-slate-800 rounded-xl p-2 shrink-0 shadow-lg">
+        <div className="flex items-center gap-2">
+          {/* Avatar Robot animé */}
+          <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-md ${
+            isAnalyzing ? 'bg-amber-500 animate-pulse' : 'bg-gradient-to-tr from-indigo-600 to-pink-600'
+          }`}>
+            <Bot className="w-5 h-5 text-white" />
+          </div>
 
-              {/* Dernières propositions */}
-              <div>
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block mb-2">
-                  Ses propositions :
+          {/* Bulle de l'IA & Propositions */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between gap-1 mb-1">
+              <span className="text-[11px] font-extrabold text-amber-300 flex items-center gap-1 truncate">
+                <Sparkles className="w-3 h-3 shrink-0" />
+                {isAnalyzing ? 'L\'IA analyse...' : aiComment}
+              </span>
+
+              {hasWonCurrentRound ? (
+                <span className="text-[10px] font-black text-emerald-400 bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-500/40 shrink-0">
+                  +{roundScore} pts 🎯
                 </span>
-                {aiGuesses.length > 0 ? (
-                  <div className="flex flex-wrap gap-1.5">
-                    {aiGuesses.map((g, idx) => {
-                      const isMatch = g.toLowerCase().trim() === currentWord.toLowerCase().trim();
-                      return (
-                        <span
-                          key={idx}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-bold capitalize transition shadow-sm ${
-                            isMatch
-                              ? 'bg-emerald-600 text-white ring-2 ring-emerald-400 animate-bounce'
-                              : 'bg-slate-800 text-slate-300 border border-slate-700'
-                          }`}
-                        >
-                          {g} {isMatch ? '🎯 (Trouvé !)' : ''}
-                        </span>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <p className="text-xs text-slate-500 italic">
-                    Aucune proposition pour l'instant. Fais un premier tracé !
-                  </p>
-                )}
-              </div>
+              ) : (
+                <span className="text-[9px] text-slate-500 hidden sm:inline">
+                  ⚡ Auto-détection active
+                </span>
+              )}
             </div>
 
-            {/* Victoire ou Bouton Deviner */}
-            <div className="pt-4 border-t border-slate-800">
-              {hasWon ? (
-                <div className="p-3 bg-emerald-950/60 border border-emerald-500/50 rounded-2xl text-center space-y-2">
-                  <div className="flex items-center justify-center gap-1.5 text-emerald-300 font-black text-base">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-                    L'IA a trouvé ton dessin ! 🏆
-                  </div>
-                  <p className="text-xs text-emerald-400/80">En seulement {attempts} tentative{attempts > 1 ? 's' : ''} !</p>
-                  <button
-                    onClick={pickRandomWord}
-                    className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs shadow-md transition"
-                  >
-                    Dessin suivant &rarr;
-                  </button>
-                </div>
+            {/* Badges des devinettes de l'IA */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
+              {aiGuesses.length > 0 ? (
+                aiGuesses.map((guess, idx) => {
+                  const isMatch = guess.toLowerCase().trim() === currentWord.toLowerCase().trim();
+                  return (
+                    <span
+                      key={idx}
+                      className={`text-[11px] font-bold px-2 py-0.5 rounded-md capitalize shrink-0 ${
+                        isMatch
+                          ? 'bg-emerald-600 text-white animate-bounce ring-1 ring-emerald-300'
+                          : 'bg-slate-800 text-slate-300 border border-slate-700'
+                      }`}
+                    >
+                      {guess} {isMatch ? '🎯' : ''}
+                    </span>
+                  );
+                })
               ) : (
-                <button
-                  onClick={triggerAiGuess}
-                  disabled={!lastSnapshot || isAnalyzing}
-                  className="w-full py-3 px-4 bg-gradient-to-r from-indigo-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500 disabled:opacity-40 text-white font-bold rounded-2xl flex items-center justify-center gap-2 transition shadow-lg shadow-indigo-600/30 text-sm active:scale-98"
-                >
-                  <Sparkles className="w-4 h-4 text-amber-300" />
-                  <span>{isAnalyzing ? 'L\'IA réfléchit...' : 'Faire deviner à l\'IA !'}</span>
-                </button>
+                <span className="text-[10px] text-slate-500 italic">
+                  Dessine un trait pour que l'IA commence à deviner...
+                </span>
               )}
             </div>
           </div>
         </div>
-      </div>
+      </footer>
+
+      {/* 5. MODALE DE FIN DE PARTIE SOLO */}
+      {isGameOver && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn">
+          <div className="w-full max-w-sm bg-slate-900 border-2 border-indigo-500 rounded-3xl p-6 text-white text-center shadow-2xl">
+            <div className="w-16 h-16 mx-auto mb-3 bg-gradient-to-tr from-amber-400 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
+              <Trophy className="w-8 h-8 text-slate-950" />
+            </div>
+
+            <h3 className="text-2xl font-black mb-1">Défi Solo Terminé !</h3>
+            <p className="text-xs text-slate-400 mb-6">
+              Tu as fait deviner <strong className="text-emerald-400">{wonRoundsCount}</strong> / {totalRounds} mots à l'IA
+            </p>
+
+            <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 mb-6">
+              <span className="text-xs text-slate-400 uppercase font-bold tracking-wider block mb-1">
+                Score Virtuel Total
+              </span>
+              <span className="text-3xl font-black font-mono text-amber-400">
+                {totalScore} pts
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => {
+                  setIsGameOver(false);
+                  startNewRound(1);
+                  setTotalScore(0);
+                  setWonRoundsCount(0);
+                }}
+                className="py-3 px-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs transition"
+              >
+                Rejouer
+              </button>
+              <button
+                onClick={onBack}
+                className="py-3 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl text-xs transition border border-slate-700"
+              >
+                Menu Principal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

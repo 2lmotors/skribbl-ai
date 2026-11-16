@@ -25,6 +25,8 @@ export default function App() {
   const [roundEndData, setRoundEndData] = useState(null);
   const [secretWord, setSecretWord] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [mobileTab, setMobileTab] = useState('chat'); // 'chat' | 'players'
+  const [soloConfig, setSoloConfig] = useState({ category: 'all', rounds: 3, duration: 60 });
 
   // Outils de dessin
   const [activeTool, setActiveTool] = useState('brush');
@@ -195,7 +197,10 @@ export default function App() {
         <Lobby
           onCreateRoom={handleCreateRoom}
           onJoinRoom={handleJoinRoom}
-          onStartSoloAI={() => setView('solo_ai')}
+          onStartSoloAI={(cfg) => {
+            if (cfg) setSoloConfig(cfg);
+            setView('solo_ai');
+          }}
           onOpenSettings={() => setIsSettingsOpen(true)}
           defaultRoomCode={urlRoomCode}
         />
@@ -206,6 +211,9 @@ export default function App() {
         <SoloAIMode
           onBack={() => setView('lobby')}
           onOpenSettings={() => setIsSettingsOpen(true)}
+          initialCategory={soloConfig.category}
+          initialRounds={soloConfig.rounds}
+          initialDuration={soloConfig.duration}
         />
       )}
 
@@ -293,26 +301,28 @@ export default function App() {
 
       {/* 4. VUE EN JEU MULTIJOUEUR */}
       {view === 'game' && room && room.state !== 'LOBBY' && (
-        <div className="max-w-6xl mx-auto flex flex-col gap-3 min-h-[95vh]">
+        <div className="h-[100dvh] max-h-[100dvh] w-full max-w-6xl mx-auto flex flex-col justify-between overflow-hidden p-1 sm:p-2.5">
           {/* Header de jeu */}
-          <GameHeader
-            roomId={room.roomId}
-            currentRound={room.currentRound}
-            maxRounds={room.settings?.maxRounds || 3}
-            timeRemaining={room.timeRemaining || 0}
-            hintMask={room.hintMask}
-            secretWord={secretWord}
-            isDrawer={room.currentDrawerId === socket.id}
-            state={room.state}
-            onOpenQR={() => setIsQrOpen(true)}
-            onOpenSettings={() => setIsSettingsOpen(true)}
-            onLeaveRoom={handleLeaveRoom}
-          />
+          <div className="shrink-0 mb-1">
+            <GameHeader
+              roomId={room.roomId}
+              currentRound={room.currentRound}
+              maxRounds={room.settings?.maxRounds || 3}
+              timeRemaining={room.timeRemaining || 0}
+              hintMask={room.hintMask}
+              secretWord={secretWord}
+              isDrawer={room.currentDrawerId === socket.id}
+              state={room.state}
+              onOpenQR={() => setIsQrOpen(true)}
+              onOpenSettings={() => setIsSettingsOpen(true)}
+              onLeaveRoom={handleLeaveRoom}
+            />
+          </div>
 
           {/* Grille Principale (Joueurs + Canvas + Chat) */}
-          <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-5 gap-3 flex-1 items-start">
-            {/* Colonne Gauche : Liste des Joueurs */}
-            <div className="hidden md:block md:col-span-1">
+          <div className="flex-1 min-h-0 flex flex-col md:grid md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-3 overflow-hidden">
+            {/* Colonne Gauche (Desktop uniquement) : Liste des Joueurs */}
+            <div className="hidden md:block md:col-span-1 overflow-y-auto">
               <PlayerList
                 players={room.players || []}
                 currentDrawerId={room.currentDrawerId}
@@ -321,42 +331,83 @@ export default function App() {
             </div>
 
             {/* Colonne Centrale : Canvas & Toolbar */}
-            <div className="md:col-span-3 lg:col-span-3 flex flex-col gap-2">
-              <Canvas
-                isDrawer={room.currentDrawerId === socket.id && room.state === 'DRAWING'}
-                activeTool={activeTool}
-                activeColor={activeColor}
-                brushSize={brushSize}
-                onDrawAction={handleDrawAction}
-                externalAction={externalDrawAction}
-              />
-
-              <Toolbar
-                activeTool={activeTool}
-                setActiveTool={setActiveTool}
-                activeColor={activeColor}
-                setActiveColor={setActiveColor}
-                brushSize={brushSize}
-                setBrushSize={setBrushSize}
-                onUndo={() => {}}
-                onClear={() => {
-                  handleDrawAction({ type: 'clear' });
-                }}
-                isDrawer={room.currentDrawerId === socket.id && room.state === 'DRAWING'}
-              />
-
-              {/* Version mobile : Joueurs sous le canvas */}
-              <div className="md:hidden">
-                <PlayerList
-                  players={room.players || []}
-                  currentDrawerId={room.currentDrawerId}
-                  myId={socket.id}
+            <div className="flex-1 min-h-0 md:col-span-3 lg:col-span-3 flex flex-col justify-between overflow-hidden">
+              <div className="flex-1 min-h-0 max-h-[46vh] sm:max-h-[58vh] flex items-center justify-center">
+                <Canvas
+                  isDrawer={room.currentDrawerId === socket.id && room.state === 'DRAWING'}
+                  activeTool={activeTool}
+                  activeColor={activeColor}
+                  brushSize={brushSize}
+                  onDrawAction={handleDrawAction}
+                  externalAction={externalDrawAction}
                 />
+              </div>
+
+              <div className="shrink-0 my-1">
+                <Toolbar
+                  activeTool={activeTool}
+                  setActiveTool={setActiveTool}
+                  activeColor={activeColor}
+                  setActiveColor={setActiveColor}
+                  brushSize={brushSize}
+                  setBrushSize={setBrushSize}
+                  onUndo={() => {}}
+                  onClear={() => {
+                    handleDrawAction({ type: 'clear' });
+                  }}
+                  isDrawer={room.currentDrawerId === socket.id && room.state === 'DRAWING'}
+                />
+              </div>
+
+              {/* Version Mobile : Onglets [Chat] et [Joueurs] pour tout garder sur 1 seul écran */}
+              <div className="md:hidden flex-1 min-h-[140px] max-h-[30vh] flex flex-col overflow-hidden">
+                <div className="flex items-center gap-1 mb-1 bg-slate-950 p-1 rounded-xl border border-slate-800 shrink-0">
+                  <button
+                    onClick={() => setMobileTab('chat')}
+                    className={`flex-1 py-1 px-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                      mobileTab === 'chat'
+                        ? 'bg-indigo-600 text-white shadow-sm'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <span>💬 Chat & Réponses</span>
+                  </button>
+                  <button
+                    onClick={() => setMobileTab('players')}
+                    className={`flex-1 py-1 px-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                      mobileTab === 'players'
+                        ? 'bg-indigo-600 text-white shadow-sm'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <span>👥 Joueurs ({room.players?.length || 0})</span>
+                  </button>
+                </div>
+
+                <div className="flex-1 min-h-0 overflow-hidden">
+                  {mobileTab === 'chat' ? (
+                    <Chat
+                      messages={chatMessages}
+                      onSendMessage={handleSendMessage}
+                      isDrawer={room.currentDrawerId === socket.id && room.state === 'DRAWING'}
+                      hasGuessed={room.players?.find((p) => p.id === socket.id)?.hasGuessed}
+                      disabled={room.state !== 'DRAWING'}
+                    />
+                  ) : (
+                    <div className="h-full overflow-y-auto">
+                      <PlayerList
+                        players={room.players || []}
+                        currentDrawerId={room.currentDrawerId}
+                        myId={socket.id}
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
-            {/* Colonne Droite : Chat et devinettes */}
-            <div className="md:col-span-4 lg:col-span-1 h-[340px] md:h-[480px]">
+            {/* Colonne Droite (Desktop uniquement) : Chat */}
+            <div className="hidden md:block md:col-span-4 lg:col-span-1 h-full overflow-hidden">
               <Chat
                 messages={chatMessages}
                 onSendMessage={handleSendMessage}
