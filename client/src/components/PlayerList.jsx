@@ -18,7 +18,7 @@ export default function PlayerList({
 
       <div className="space-y-1.5 max-h-[220px] md:max-h-[300px] overflow-y-auto">
         {sortedPlayers.map((player, idx) => {
-          const isMe = player.id === myId;
+          const isMe = player.id === myId || (player.userId && player.userId === myId);
           const isDrawer = player.id === currentDrawerId;
 
           return (

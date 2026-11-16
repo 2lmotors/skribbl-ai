@@ -21,9 +21,11 @@ export class RoomManager {
 
   createRoom(socket, hostInfo = {}) {
     const roomId = this.generateRoomCode();
+    const userId = hostInfo.userId || socket.id;
     const room = {
       id: roomId,
       hostId: socket.id,
+      hostUserId: userId,
       state: 'LOBBY', // LOBBY, SELECTING_WORD, DRAWING, ROUND_OVER, GAME_OVER
       settings: {
         maxRounds: hostInfo.maxRounds || 3,
@@ -44,10 +46,11 @@ export class RoomManager {
       chat: [],
       lastImageSnapshot: null,
       aiLastGuessTime: 0,
+      emptyRoomTimeout: null,
     };
 
     this.rooms.set(roomId, room);
-    this.addPlayer(roomId, socket, hostInfo, true);
+    this.addPlayer(roomId, socket, { ...hostInfo, userId }, true);
     return room;
   }
 
@@ -55,16 +58,64 @@ export class RoomManager {
     const room = this.rooms.get(roomId);
     if (!room) return null;
 
+    const userId = playerInfo.userId || socket.id;
+
+    // Si un délai de suppression du salon était armé, l'annuler
+    if (room.emptyRoomTimeout) {
+      clearTimeout(room.emptyRoomTimeout);
+      room.emptyRoomTimeout = null;
+    }
+
+    // Vérifier si un joueur avec ce userId existe déjà (reconnexion après WhatsApp/verrouillage)
+    let existingPlayer = null;
+    for (const [key, p] of room.players.entries()) {
+      if (p.userId && p.userId === userId) {
+        existingPlayer = p;
+        if (key !== socket.id) {
+          room.players.delete(key);
+        }
+        break;
+      }
+    }
+
+    if (existingPlayer) {
+      existingPlayer.id = socket.id;
+      existingPlayer.connected = true;
+      if (playerInfo.nickname) existingPlayer.nickname = playerInfo.nickname.trim().slice(0, 18);
+      if (playerInfo.avatar) existingPlayer.avatar = playerInfo.avatar;
+
+      if (isHost || room.hostUserId === userId) {
+        existingPlayer.isHost = true;
+        room.hostId = socket.id;
+        room.hostUserId = userId;
+      }
+
+      room.players.set(socket.id, existingPlayer);
+      socket.join(roomId);
+      socket.roomId = roomId;
+
+      this.checkAndAddAiBot(room);
+      this.broadcastRoomState(roomId);
+      return room;
+    }
+
     const player = {
       id: socket.id,
+      userId,
       nickname: (playerInfo.nickname || `Joueur ${room.players.size + 1}`).trim().slice(0, 18),
       avatar: playerInfo.avatar || '🎨',
       score: 0,
       roundScore: 0,
-      isHost,
+      isHost: isHost || room.hostUserId === userId,
       hasGuessed: false,
       isAi: false,
+      connected: true,
     };
+
+    if (player.isHost) {
+      room.hostId = socket.id;
+      room.hostUserId = userId;
+    }
 
     room.players.set(socket.id, player);
     socket.join(roomId);
@@ -88,6 +139,7 @@ export class RoomManager {
     if (room.settings.enableAiPlayer && !room.players.has(BOT_ID)) {
       room.players.set(BOT_ID, {
         id: BOT_ID,
+        userId: BOT_ID,
         nickname: 'Gemini IA 🤖',
         avatar: '🤖',
         score: 0,
@@ -95,6 +147,7 @@ export class RoomManager {
         isHost: false,
         hasGuessed: false,
         isAi: true,
+        connected: true,
       });
     } else if (!room.settings.enableAiPlayer && room.players.has(BOT_ID)) {
       room.players.delete(BOT_ID);
@@ -111,32 +164,40 @@ export class RoomManager {
     const player = room.players.get(socket.id);
     if (!player) return;
 
-    room.players.delete(socket.id);
-    this.broadcastChat(roomId, {
-      sender: 'Système',
-      text: `${player.nickname} a quitté la partie. 🚪`,
-      type: 'system',
-    });
+    // Marquer comme déconnecté sans supprimer immédiatement pour supporter la mise en veille / WhatsApp
+    player.connected = false;
+    player.disconnectedAt = Date.now();
 
-    // Nettoyer si plus de vrais joueurs
-    const realPlayers = Array.from(room.players.values()).filter(p => !p.isAi);
-    if (realPlayers.length === 0) {
-      if (room.timer) clearInterval(room.timer);
-      this.rooms.delete(roomId);
+    // Vérifier s'il reste des vrais joueurs connectés
+    const connectedRealPlayers = Array.from(room.players.values()).filter(p => !p.isAi && p.connected !== false);
+
+    if (connectedRealPlayers.length === 0) {
+      // Aucun joueur actif en ce moment (ex: l'hôte est sur WhatsApp pour envoyer le lien d'invitation)
+      // On garde le salon bien vivant pendant 10 minutes !
+      if (room.emptyRoomTimeout) clearTimeout(room.emptyRoomTimeout);
+      room.emptyRoomTimeout = setTimeout(() => {
+        const stillConnected = Array.from(room.players.values()).filter(p => !p.isAi && p.connected !== false);
+        if (stillConnected.length === 0) {
+          if (room.timer) clearInterval(room.timer);
+          this.rooms.delete(roomId);
+          console.log(`[RoomManager] Salon ${roomId} libéré après inactivité prolongée.`);
+        }
+      }, 10 * 60 * 1000);
       return;
     }
 
-    // Réassigner l'hôte si besoin
-    if (player.isHost && realPlayers.length > 0) {
-      realPlayers[0].isHost = true;
-      room.hostId = realPlayers[0].id;
+    // Réassigner l'hôte si l'hôte est déconnecté et qu'il reste d'autres vrais joueurs connectés
+    if (player.isHost && connectedRealPlayers.length > 0) {
+      connectedRealPlayers[0].isHost = true;
+      room.hostId = connectedRealPlayers[0].id;
+      room.hostUserId = connectedRealPlayers[0].userId;
     }
 
-    // Si le joueur qui est parti était le dessinateur en cours
-    const playerList = Array.from(room.players.values()).filter(p => !p.isAi);
+    // Si le joueur qui s'est déconnecté était le dessinateur en cours
+    const playerList = Array.from(room.players.values()).filter(p => !p.isAi && p.connected !== false);
     const currentDrawer = playerList[room.currentDrawerIndex % playerList.length];
     if (currentDrawer && currentDrawer.id === socket.id && (room.state === 'DRAWING' || room.state === 'SELECTING_WORD')) {
-      this.endTurn(roomId, 'Le dessinateur a quitté la partie !');
+      this.endTurn(roomId, 'Le dessinateur a perdu sa connexion.');
     } else {
       this.broadcastRoomState(roomId);
     }
@@ -144,18 +205,27 @@ export class RoomManager {
 
   updateSettings(roomId, socketId, newSettings) {
     const room = this.rooms.get(roomId);
-    if (!room || room.hostId !== socketId || room.state !== 'LOBBY') return;
+    if (!room || room.state !== 'LOBBY') return;
+    if (room.hostId !== socketId && room.hostUserId !== newSettings.userId) return;
 
     room.settings = { ...room.settings, ...newSettings };
     this.checkAndAddAiBot(room);
     this.broadcastRoomState(roomId);
   }
 
-  updateProfile(roomId, socketId, { nickname, avatar }) {
+  updateProfile(roomId, socketId, { nickname, avatar, userId }) {
     const room = this.rooms.get(roomId);
     if (!room) return;
 
-    const player = room.players.get(socketId);
+    let player = room.players.get(socketId);
+    if (!player && userId) {
+      for (const p of room.players.values()) {
+        if (p.userId === userId) {
+          player = p;
+          break;
+        }
+      }
+    }
     if (!player) return;
 
     if (nickname && typeof nickname === 'string') {
@@ -168,9 +238,10 @@ export class RoomManager {
     this.broadcastRoomState(roomId);
   }
 
-  startGame(roomId, socketId) {
+  startGame(roomId, socketId, userId) {
     const room = this.rooms.get(roomId);
-    if (!room || room.hostId !== socketId || room.state !== 'LOBBY') return;
+    if (!room || room.state !== 'LOBBY') return;
+    if (room.hostId !== socketId && room.hostUserId !== userId) return;
 
     const activePlayers = Array.from(room.players.values()).filter(p => !p.isAi);
     if (activePlayers.length < 1) return; // Permet de tester même seul !
@@ -542,12 +613,14 @@ export class RoomManager {
 
     const sanitizedPlayers = Array.from(room.players.values()).map(p => ({
       id: p.id,
+      userId: p.userId,
       nickname: p.nickname,
       avatar: p.avatar,
       score: p.score,
       isHost: p.isHost,
       hasGuessed: p.hasGuessed,
       isAi: p.isAi,
+      connected: p.connected !== false,
     }));
 
     // Cacher le mot aux joueurs qui ne sont pas le dessinateur
@@ -555,6 +628,7 @@ export class RoomManager {
       roomId: room.id,
       state: room.state,
       hostId: room.hostId,
+      hostUserId: room.hostUserId,
       settings: room.settings,
       players: sanitizedPlayers,
       currentRound: room.currentRound,

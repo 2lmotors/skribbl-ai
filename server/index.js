@@ -124,19 +124,25 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Reconnexion automatique d'un joueur existant (ex: retour d'arrière-plan ou WhatsApp)
+  socket.on('reconnect_player', ({ roomId, userId, nickname, avatar }) => {
+    const cleanCode = (roomId || '').trim().toUpperCase();
+    roomManager.addPlayer(cleanCode, socket, { userId, nickname, avatar });
+  });
+
   // Mettre à jour les paramètres du salon (hôte uniquement)
   socket.on('update_settings', ({ roomId, settings }) => {
     roomManager.updateSettings(roomId, socket.id, settings);
   });
 
   // Mettre à jour le profil du joueur (pseudo / avatar)
-  socket.on('update_profile', ({ roomId, nickname, avatar }) => {
-    roomManager.updateProfile(roomId, socket.id, { nickname, avatar });
+  socket.on('update_profile', ({ roomId, nickname, avatar, userId }) => {
+    roomManager.updateProfile(roomId, socket.id, { nickname, avatar, userId });
   });
 
   // Lancer la partie
-  socket.on('start_game', ({ roomId }) => {
-    roomManager.startGame(roomId, socket.id);
+  socket.on('start_game', ({ roomId, userId }) => {
+    roomManager.startGame(roomId, socket.id, userId);
   });
 
   // Choix du mot par le dessinateur

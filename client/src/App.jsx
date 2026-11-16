@@ -18,6 +18,15 @@ import { Play, Copy, Check, Users, Share2, Edit2, Smartphone, Sparkles, X } from
 const AVATARS = ['🪶', '🎨', '🦊', '🐱', '🐶', '🦁', '🐼', '🦄', '🚀', '👾', '🍕', '⚡'];
 const RANDOM_NAMES = ['Picasso', 'Monet', 'DaVinci', 'Gribouilleur', 'VanGogh', 'DoodlePro', 'ArtisteNinja', 'DessinateurFou'];
 
+export function getOrCreateUserId() {
+  let uid = localStorage.getItem('SKRIBBL_USER_ID');
+  if (!uid) {
+    uid = 'u_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+    localStorage.setItem('SKRIBBL_USER_ID', uid);
+  }
+  return uid;
+}
+
 export default function App() {
   const [view, setView] = useState('lobby'); // 'lobby' | 'game' | 'solo_ai'
   const [room, setRoom] = useState(null);
@@ -43,6 +52,9 @@ export default function App() {
   const [myNickname, setMyNickname] = useState('');
   const [myAvatar, setMyAvatar] = useState('🪶');
   const [copiedLink, setCopiedLink] = useState(false);
+
+  // Mémorisation de salon pour reconnexion mobile automatique (arrière-plan, WhatsApp)
+  const currentRoomCodeRef = useRef(sessionStorage.getItem('CURRENT_ROOM_CODE') || '');
 
   // Connexion automatique via lien d'invitation (?room=ABC123)
   const [urlRoomCode, setUrlRoomCode] = useState('');
@@ -72,10 +84,14 @@ export default function App() {
       localStorage.setItem('SKRIBBL_NICKNAME', effectiveNick);
     }
 
+    const myId = getOrCreateUserId();
     const doJoin = () => {
+      currentRoomCodeRef.current = code;
+      sessionStorage.setItem('CURRENT_ROOM_CODE', code);
       socket.emit('join_room', {
         roomId: code,
         playerInfo: {
+          userId: myId,
           nickname: effectiveNick,
           avatar: randomAvatar,
         },
@@ -97,10 +113,21 @@ export default function App() {
   useEffect(() => {
     socket.on('connect', () => {
       console.log('Connecté au serveur Socket.io avec ID:', socket.id);
+      // Reconnexion automatique si on était déjà dans un salon (ex: retour de WhatsApp ou mise en veille)
+      const activeCode = currentRoomCodeRef.current || sessionStorage.getItem('CURRENT_ROOM_CODE');
+      if (activeCode) {
+        const savedNick = localStorage.getItem('SKRIBBL_NICKNAME') || 'Artiste';
+        socket.emit('reconnect_player', {
+          roomId: activeCode,
+          userId: getOrCreateUserId(),
+          nickname: savedNick,
+        });
+      }
     });
 
     socket.on('room_created', ({ roomId }) => {
-      // Salon créé, on attend le premier room_state
+      currentRoomCodeRef.current = roomId;
+      sessionStorage.setItem('CURRENT_ROOM_CODE', roomId);
     });
 
     socket.on('room_state', (state) => {
@@ -108,6 +135,8 @@ export default function App() {
       setView('game');
       setIsAutoJoining(false);
       setErrorMsg('');
+      currentRoomCodeRef.current = state.roomId;
+      sessionStorage.setItem('CURRENT_ROOM_CODE', state.roomId);
 
       if (state.state === 'ROUND_OVER') {
         if (state.secretWord) {
@@ -191,16 +220,20 @@ export default function App() {
 
   // Actions utilisateur
   const handleCreateRoom = (hostInfo) => {
-    socket.emit('create_room', hostInfo);
+    const userId = getOrCreateUserId();
+    socket.emit('create_room', { ...hostInfo, userId });
   };
 
   const handleJoinRoom = (roomId, playerInfo) => {
-    socket.emit('join_room', { roomId, playerInfo });
+    const userId = getOrCreateUserId();
+    currentRoomCodeRef.current = roomId;
+    sessionStorage.setItem('CURRENT_ROOM_CODE', roomId);
+    socket.emit('join_room', { roomId, playerInfo: { ...playerInfo, userId } });
   };
 
   const handleStartGame = () => {
     if (room && room.roomId) {
-      socket.emit('start_game', { roomId: room.roomId });
+      socket.emit('start_game', { roomId: room.roomId, userId: getOrCreateUserId() });
       sound.playPop();
     }
   };
@@ -226,6 +259,8 @@ export default function App() {
   };
 
   const handleLeaveRoom = () => {
+    currentRoomCodeRef.current = '';
+    sessionStorage.removeItem('CURRENT_ROOM_CODE');
     window.location.href = '/';
   };
 
@@ -396,7 +431,8 @@ export default function App() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {room.players?.map((p) => {
-                  const isMe = p.id === socket.id;
+                  const myUserId = getOrCreateUserId();
+                  const isMe = (p.userId && p.userId === myUserId) || p.id === socket.id;
                   return (
                     <div
                       key={p.id}
@@ -455,7 +491,13 @@ export default function App() {
 
             {/* Bouton Lancer la partie (Hôte) ou message d'attente */}
             <div className="pt-2">
-              {room.hostId === socket.id ? (
+              {Boolean(
+                room && (
+                  (room.hostUserId && room.hostUserId === getOrCreateUserId()) ||
+                  room.hostId === socket.id ||
+                  room.players?.some(p => (p.userId === getOrCreateUserId() || p.id === socket.id) && p.isHost)
+                )
+              ) ? (
                 <button
                   onClick={handleStartGame}
                   className="w-full py-4 bg-gradient-to-r from-emerald-600 to-indigo-600 hover:from-emerald-500 hover:to-indigo-500 text-white font-black text-base rounded-2xl flex items-center justify-center gap-2 shadow-xl shadow-emerald-600/20 transition active:scale-98"
