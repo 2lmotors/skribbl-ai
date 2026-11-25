@@ -219,16 +219,16 @@ export default function Canvas({
     };
 
     const handleDrawHistory = (actions) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
+      lastPointRef.current = null;
       if (Array.isArray(actions) && actions.length > 0) {
-        // Réinitialiser la toile puis rejouer tous les tracés reçus
-        const canvas = canvasRef.current;
-        if (canvas) {
-          const ctx = canvas.getContext('2d', { willReadFrequently: true });
-          ctx.fillStyle = '#ffffff';
-          ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
-        }
         actions.forEach((act) => applyDrawAction(act));
       }
+      sendSnapshot();
     };
 
     socket.on('draw_event', handleDrawEvent);
@@ -620,10 +620,14 @@ export default function Canvas({
             onTouchStart={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.stopPropagation();
-              if (activeShape) setActiveShape(null);
-              performUndo();
+              if (activeShape) {
+                setActiveShape(null);
+                if (onDrawAction) onDrawAction({ type: 'shape_preview', shape: null });
+                return;
+              }
               if (onDrawAction) onDrawAction({ type: 'undo' });
               if (onUndo) onUndo();
+              performUndo();
               sound.playPop();
             }}
             title="Annuler le dernier trait (Undo)"

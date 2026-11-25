@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, CheckCircle2, Flame, Bot, UserMinus, UserPlus, Gift } from 'lucide-react';
+import { Send, CheckCircle2, Flame, Bot, UserMinus, UserPlus, Gift, Eye } from 'lucide-react';
 import { sound } from '../utils/sound.js';
 
 export default function Chat({
@@ -9,6 +9,7 @@ export default function Chat({
   hasGuessed,
   disabled,
   hintMask = '',
+  onScrollToDrawing,
 }) {
   const [inputText, setInputText] = useState('');
   const [isFocused, setIsFocused] = useState(false);
@@ -31,12 +32,14 @@ export default function Chat({
   };
 
   return (
-    <div className="flex flex-col h-full bg-slate-900/95 backdrop-blur border border-slate-700/80 rounded-2xl overflow-hidden shadow-xl transition-all duration-200">
-      {/* En-tête du Chat avec indice optionnel sur mobile */}
-      <div className="px-3 py-1 sm:px-4 sm:py-2 bg-slate-950/60 border-b border-slate-800 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-2">
+    <div className={`flex flex-col bg-slate-900/95 backdrop-blur border border-slate-700/80 rounded-2xl overflow-hidden shadow-xl transition-all duration-200 ${
+      isFocused ? 'h-auto max-h-[170px] sm:h-full sm:max-h-none' : 'h-full'
+    }`}>
+      {/* En-tête du Chat avec indice et bouton raccourci vers le dessin */}
+      <div className="px-3 py-1 sm:px-4 sm:py-2 bg-slate-950/80 border-b border-slate-800 flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2">
           <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-300">
-            Chat & Propositions
+            Chat
           </span>
           {hintMask && !hasGuessed && !isDrawer && (
             <span className="text-[10px] sm:text-xs font-mono font-bold tracking-widest text-amber-400 bg-amber-950/60 border border-amber-500/30 px-1.5 py-0.5 rounded">
@@ -44,16 +47,30 @@ export default function Chat({
             </span>
           )}
         </div>
-        <span className="text-[10px] sm:text-xs text-slate-500">
-          {messages.length} msgs
-        </span>
+
+        <div className="flex items-center gap-2">
+          {onScrollToDrawing && (
+            <button
+              type="button"
+              onClick={onScrollToDrawing}
+              title="Voir le dessin en cours"
+              className="md:hidden flex items-center gap-1 text-[10px] font-bold text-indigo-300 bg-indigo-950/80 hover:bg-indigo-900 px-2 py-0.5 rounded-lg border border-indigo-500/40 transition active:scale-95"
+            >
+              <Eye className="w-3 h-3 text-indigo-400" />
+              <span>Dessin</span>
+            </button>
+          )}
+          <span className="text-[10px] sm:text-xs text-slate-500">
+            {messages.length} msgs
+          </span>
+        </div>
       </div>
 
-      {/* Zone des messages défilants (s'adapte élégamment sur smartphone quand le clavier virtuel s'ouvre) */}
+      {/* Zone des messages défilants (se compacte automatiquement quand le clavier mobile s'ouvre pour laisser le dessin visible) */}
       <div
         ref={chatScrollRef}
-        className={`flex-1 min-h-0 p-2 sm:p-3 overflow-y-auto space-y-1.5 text-xs sm:text-sm select-text transition-all duration-200 ${
-          isFocused ? 'max-h-20 sm:max-h-none' : ''
+        className={`flex-1 min-h-0 p-2 sm:p-3 overflow-y-auto space-y-1 text-xs sm:text-sm select-text transition-all duration-200 ${
+          isFocused ? 'max-h-16 sm:max-h-none' : ''
         }`}
       >
         {messages.map((msg, idx) => {
@@ -149,8 +166,8 @@ export default function Chat({
         })}
       </div>
 
-      {/* Barre de saisie */}
-      <form onSubmit={handleSubmit} className="p-1.5 sm:p-2 bg-slate-950/90 border-t border-slate-800 shrink-0">
+      {/* Barre de saisie (toujours calée au plus près du clavier, sans trou noir dessous) */}
+      <form onSubmit={handleSubmit} className="p-1.5 sm:p-2 bg-slate-950/95 border-t border-slate-800 shrink-0 mt-auto">
         {hasGuessed ? (
           <div className="py-1.5 px-2.5 bg-emerald-950/40 border border-emerald-500/30 rounded-xl text-center text-xs font-semibold text-emerald-400 flex items-center justify-center gap-1.5">
             <CheckCircle2 className="w-3.5 h-3.5" />
@@ -167,14 +184,20 @@ export default function Chat({
               placeholder="Tape ta proposition ici..."
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
-              onFocus={() => setIsFocused(true)}
+              onFocus={() => {
+                setIsFocused(true);
+                // Défilement doux automatique pour garder le canvas et la saisie bien centrés
+                setTimeout(() => {
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }, 150);
+              }}
               onBlur={() => setIsFocused(false)}
               disabled={disabled}
               autoComplete="off"
               autoCorrect="off"
               autoCapitalize="none"
               spellCheck="false"
-              className="flex-1 px-3 py-1.5 sm:py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition"
+              className="flex-1 px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition"
             />
             <button
               type="submit"

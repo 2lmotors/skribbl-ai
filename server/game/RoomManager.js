@@ -465,19 +465,25 @@ export class RoomManager {
     if (action.type === 'clear') {
       room.canvasActions = [];
     } else if (action.type === 'undo') {
-      // Retirer le dernier tracé ou la dernière forme de l'historique
+      // Retirer le dernier tracé, forme ou remplissage de l'historique
       let lastStartIndex = -1;
       for (let i = room.canvasActions.length - 1; i >= 0; i--) {
-        if (room.canvasActions[i].type === 'start' || room.canvasActions[i].type === 'shape') {
+        const actType = room.canvasActions[i].type;
+        if (actType === 'start' || actType === 'shape' || actType === 'fill') {
           lastStartIndex = i;
           break;
         }
       }
       if (lastStartIndex !== -1) {
         room.canvasActions.splice(lastStartIndex);
-      } else {
+      } else if (room.canvasActions.length > 0) {
         room.canvasActions.pop();
       }
+
+      // Diffuser l'historique mis à jour à TOUS les joueurs du salon (dessinateur + concurrents)
+      // Garantit 100% d'effacement synchrone sur tous les écrans
+      this.io.to(roomId).emit('draw_history', room.canvasActions);
+      return;
     } else if (action.type === 'shape_preview') {
       // Prévisualisation temporaire de forme en direct (déplacement / mise à l'échelle) :
       // On retransmet aux autres joueurs pour qu'ils voient la forme bouger en direct, sans polluer l'historique permanent

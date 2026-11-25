@@ -55,6 +55,13 @@ export default function App() {
 
   // Mémorisation de salon pour reconnexion mobile automatique (arrière-plan, WhatsApp)
   const currentRoomCodeRef = useRef(sessionStorage.getItem('CURRENT_ROOM_CODE') || '');
+  const canvasContainerRef = useRef(null);
+
+  const scrollToCanvas = () => {
+    if (canvasContainerRef.current) {
+      canvasContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
 
   // Connexion automatique via lien d'invitation (?room=ABC123)
   const [urlRoomCode, setUrlRoomCode] = useState('');
@@ -664,7 +671,7 @@ export default function App() {
 
       {/* 4. VUE EN JEU MULTIJOUEUR */}
       {view === 'game' && room && room.state !== 'LOBBY' && (
-        <div className="h-[100dvh] max-h-[100dvh] w-full max-w-6xl mx-auto flex flex-col justify-between overflow-hidden p-1 sm:p-2.5">
+        <div className="h-[100dvh] max-h-[100dvh] w-full max-w-6xl mx-auto flex flex-col overflow-y-auto sm:overflow-hidden p-1 sm:p-2.5 touch-pan-y">
           {/* Header de jeu */}
           <div className="shrink-0 mb-1">
             <GameHeader
@@ -683,7 +690,7 @@ export default function App() {
           </div>
 
           {/* Grille Principale (Joueurs + Canvas + Chat) */}
-          <div className="flex-1 min-h-0 flex flex-col md:grid md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-3 overflow-hidden">
+          <div className="flex-1 min-h-0 flex flex-col md:grid md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-3 overflow-visible sm:overflow-hidden">
             {/* Colonne Gauche (Desktop uniquement) : Liste des Joueurs */}
             <div className="hidden md:block md:col-span-1 overflow-y-auto">
               <PlayerList
@@ -694,8 +701,8 @@ export default function App() {
             </div>
 
             {/* Colonne Centrale : Canvas & Toolbar */}
-            <div className="flex-1 min-h-0 md:col-span-3 lg:col-span-3 flex flex-col justify-between overflow-hidden">
-              <div className="shrink-0 w-full max-h-[44vh] sm:max-h-[58vh] flex items-center justify-center">
+            <div className="flex-1 min-h-0 md:col-span-3 lg:col-span-3 flex flex-col overflow-visible sm:overflow-hidden">
+              <div ref={canvasContainerRef} className="shrink-0 w-full max-h-[38vh] sm:max-h-[58vh] flex items-center justify-center my-0.5">
                 <Canvas
                   key={`canvas_${room.currentDrawerId}_round_${room.currentRound}`}
                   isDrawer={room.currentDrawerId === socket.id && room.state === 'DRAWING'}
@@ -717,7 +724,7 @@ export default function App() {
                     setActiveColor={setActiveColor}
                     brushSize={brushSize}
                     setBrushSize={setBrushSize}
-                    onUndo={() => {}}
+                    onUndo={() => handleDrawAction({ type: 'undo' })}
                     onClear={() => {
                       handleDrawAction({ type: 'clear' });
                     }}
@@ -727,7 +734,7 @@ export default function App() {
               )}
 
               {/* Version Mobile : Onglets [Chat] et [Joueurs] ajustables automatiquement */}
-              <div className="md:hidden flex-1 min-h-0 flex flex-col overflow-hidden">
+              <div className="md:hidden flex-1 min-h-0 flex flex-col overflow-visible pb-1">
                 <div className="flex items-center gap-1 mb-1 bg-slate-950 p-0.5 rounded-xl border border-slate-800 shrink-0">
                   <button
                     onClick={() => setMobileTab('chat')}
@@ -751,7 +758,7 @@ export default function App() {
                   </button>
                 </div>
 
-                <div className="flex-1 min-h-0 overflow-hidden">
+                <div className="flex-1 min-h-0 flex flex-col">
                   {mobileTab === 'chat' ? (
                     <Chat
                       messages={chatMessages}
@@ -760,6 +767,7 @@ export default function App() {
                       hasGuessed={room.players?.find((p) => p.id === socket.id || (p.userId && p.userId === getOrCreateUserId()))?.hasGuessed}
                       disabled={room.state !== 'DRAWING'}
                       hintMask={room.hintMask}
+                      onScrollToDrawing={scrollToCanvas}
                     />
                   ) : (
                     <div className="h-full overflow-y-auto">
@@ -783,6 +791,7 @@ export default function App() {
                 hasGuessed={room.players?.find((p) => p.id === socket.id)?.hasGuessed}
                 disabled={room.state !== 'DRAWING'}
                 hintMask={room.hintMask}
+                onScrollToDrawing={scrollToCanvas}
               />
             </div>
           </div>
