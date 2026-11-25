@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, CheckCircle2, Flame, Bot, UserMinus, UserPlus } from 'lucide-react';
+import { Send, CheckCircle2, Flame, Bot, UserMinus, UserPlus, Gift } from 'lucide-react';
 import { sound } from '../utils/sound.js';
 
 export default function Chat({
@@ -8,15 +8,17 @@ export default function Chat({
   isDrawer,
   hasGuessed,
   disabled,
+  hintMask = '',
 }) {
   const [inputText, setInputText] = useState('');
+  const [isFocused, setIsFocused] = useState(false);
   const chatScrollRef = useRef(null);
 
   useEffect(() => {
     if (chatScrollRef.current) {
       chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
     }
-  }, [messages]);
+  }, [messages, isFocused]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -29,21 +31,30 @@ export default function Chat({
   };
 
   return (
-    <div className="flex flex-col h-full bg-slate-900/95 backdrop-blur border border-slate-700/80 rounded-2xl overflow-hidden shadow-xl">
-      {/* En-tête du Chat */}
-      <div className="px-3 py-1 sm:px-4 sm:py-2.5 bg-slate-950/60 border-b border-slate-800 flex items-center justify-between shrink-0">
-        <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-300">
-          Chat & Propositions
-        </span>
+    <div className="flex flex-col h-full bg-slate-900/95 backdrop-blur border border-slate-700/80 rounded-2xl overflow-hidden shadow-xl transition-all duration-200">
+      {/* En-tête du Chat avec indice optionnel sur mobile */}
+      <div className="px-3 py-1 sm:px-4 sm:py-2 bg-slate-950/60 border-b border-slate-800 flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-300">
+            Chat & Propositions
+          </span>
+          {hintMask && !hasGuessed && !isDrawer && (
+            <span className="text-[10px] sm:text-xs font-mono font-bold tracking-widest text-amber-400 bg-amber-950/60 border border-amber-500/30 px-1.5 py-0.5 rounded">
+              {hintMask}
+            </span>
+          )}
+        </div>
         <span className="text-[10px] sm:text-xs text-slate-500">
           {messages.length} msgs
         </span>
       </div>
 
-      {/* Zone des messages défilants */}
+      {/* Zone des messages défilants (s'adapte élégamment sur smartphone quand le clavier virtuel s'ouvre) */}
       <div
         ref={chatScrollRef}
-        className="flex-1 min-h-0 p-2 sm:p-3 overflow-y-auto space-y-1.5 text-xs sm:text-sm select-text"
+        className={`flex-1 min-h-0 p-2 sm:p-3 overflow-y-auto space-y-1.5 text-xs sm:text-sm select-text transition-all duration-200 ${
+          isFocused ? 'max-h-20 sm:max-h-none' : ''
+        }`}
       >
         {messages.map((msg, idx) => {
           if (msg.type === 'system') {
@@ -93,6 +104,18 @@ export default function Chat({
             );
           }
 
+          if (msg.type === 'guessed_approx') {
+            return (
+              <div
+                key={idx}
+                className="py-1 px-2.5 rounded-xl bg-amber-950/70 border border-amber-500/50 text-xs text-amber-300 font-bold flex items-center gap-1.5 shadow-md"
+              >
+                <Gift className="w-3.5 h-3.5 text-amber-400 shrink-0 animate-pulse" />
+                <span>{msg.text}</span>
+              </div>
+            );
+          }
+
           if (msg.type === 'close') {
             return (
               <div
@@ -127,7 +150,7 @@ export default function Chat({
       </div>
 
       {/* Barre de saisie */}
-      <form onSubmit={handleSubmit} className="p-1.5 sm:p-2.5 bg-slate-950/90 border-t border-slate-800 shrink-0">
+      <form onSubmit={handleSubmit} className="p-1.5 sm:p-2 bg-slate-950/90 border-t border-slate-800 shrink-0">
         {hasGuessed ? (
           <div className="py-1.5 px-2.5 bg-emerald-950/40 border border-emerald-500/30 rounded-xl text-center text-xs font-semibold text-emerald-400 flex items-center justify-center gap-1.5">
             <CheckCircle2 className="w-3.5 h-3.5" />
@@ -144,6 +167,8 @@ export default function Chat({
               placeholder="Tape ta proposition ici..."
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setIsFocused(false)}
               disabled={disabled}
               autoComplete="off"
               autoCorrect="off"

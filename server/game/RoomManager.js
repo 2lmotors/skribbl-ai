@@ -1,4 +1,4 @@
-import { getRandomWordChoices, isWordMatch, normalizeStrict, normalizeLoose, getLevenshteinDistance } from './words.js';
+import { getRandomWordChoices, checkWordMatch, isWordMatch, normalizeStrict, normalizeLoose, getLevenshteinDistance } from './words.js';
 import { guessDrawingWithAI } from './aiGuesser.js';
 
 export class RoomManager {
@@ -112,11 +112,9 @@ export class RoomManager {
         socket.emit('your_secret_word', { word: room.currentWord });
       }
 
-      // Renvoyer l'historique complet du tableau pour resynchroniser instantanément son écran
+      // Renvoyer l'historique complet du tableau pour resynchroniser instantanément son écran sans perte de paquets
       if (room.canvasActions && room.canvasActions.length > 0) {
-        room.canvasActions.forEach(action => {
-          socket.emit('draw_event', action);
-        });
+        socket.emit('draw_history', room.canvasActions);
       }
 
       this.checkAndAddAiBot(room);
@@ -152,6 +150,11 @@ export class RoomManager {
     room.players.set(socket.id, player);
     socket.join(roomId);
     socket.roomId = roomId;
+
+    // Si la partie est déjà en cours et qu'il y a un dessin, l'envoyer immédiatement au nouveau joueur
+    if (room.canvasActions && room.canvasActions.length > 0) {
+      socket.emit('draw_history', room.canvasActions);
+    }
 
     // Si le bot IA est activé et n'est pas encore dans la liste
     this.checkAndAddAiBot(room);
@@ -462,10 +465,10 @@ export class RoomManager {
     if (action.type === 'clear') {
       room.canvasActions = [];
     } else if (action.type === 'undo') {
-      // Retirer le dernier tracé de l'historique
+      // Retirer le dernier tracé ou la dernière forme de l'historique
       let lastStartIndex = -1;
       for (let i = room.canvasActions.length - 1; i >= 0; i--) {
-        if (room.canvasActions[i].type === 'start') {
+        if (room.canvasActions[i].type === 'start' || room.canvasActions[i].type === 'shape') {
           lastStartIndex = i;
           break;
         }
@@ -475,6 +478,11 @@ export class RoomManager {
       } else {
         room.canvasActions.pop();
       }
+    } else if (action.type === 'shape_preview') {
+      // Prévisualisation temporaire de forme en direct (déplacement / mise à l'échelle) :
+      // On retransmet aux autres joueurs pour qu'ils voient la forme bouger en direct, sans polluer l'historique permanent
+      this.io.to(roomId).emit('draw_event', action);
+      return;
     } else {
       room.canvasActions.push(action);
     }
@@ -545,15 +553,26 @@ export class RoomManager {
         return;
       }
 
-      // Vérification de la réponse : accepte sans accent, sans tiret, ou avec espace à la place du tiret
-      if (isWordMatch(text, room.currentWord) && !isDrawer) {
-        // Bonne réponse !
+      // Vérification intelligente de la réponse (exacte OU approximative / faute d'orthographe / singulier-pluriel)
+      const matchResult = checkWordMatch(text, room.currentWord);
+      if (matchResult.match && !isDrawer) {
+        // Bonne réponse acceptée !
         player.hasGuessed = true;
 
         // Calcul des points basé sur la rapidité
         const timeRatio = Math.max(0.1, room.timeRemaining / room.settings.roundDuration);
-        const guesserPoints = Math.round(100 + timeRatio * 400);
-        const drawerPoints = Math.round(guesserPoints * 0.35);
+        const baseGuesserPoints = Math.round(100 + timeRatio * 400);
+        let guesserPoints = baseGuesserPoints;
+        let drawerPoints = Math.round(baseGuesserPoints * 0.35);
+        const isExact = matchResult.exact;
+
+        // RÈGLE PÉNALITÉ / BONUS :
+        // Si mot trouvé mais mal orthographié (ex: cangourou au lieu de kangourou, bote au lieu de botte, singulier au lieu de pluriel):
+        // On déduit 20 points au joueur qui a deviné, et on ajoute ces 20 points au dessinateur en bonus !
+        if (!isExact) {
+          guesserPoints = Math.max(10, baseGuesserPoints - 20);
+          drawerPoints += 20;
+        }
 
         player.score += guesserPoints;
         player.roundScore = guesserPoints;
@@ -565,14 +584,22 @@ export class RoomManager {
           drawer.roundScore = (drawer.roundScore || 0) + drawerPoints;
         }
 
-        // Notification générale de réussite
-        this.broadcastChat(roomId, {
-          sender: 'Système',
-          text: `🎉 ${player.nickname} a trouvé le mot ! (+${guesserPoints} pts)`,
-          type: 'guessed',
-        });
+        // Notification générale adaptée
+        if (isExact) {
+          this.broadcastChat(roomId, {
+            sender: 'Système',
+            text: `🎉 ${player.nickname} a trouvé le mot ! (+${guesserPoints} pts)`,
+            type: 'guessed',
+          });
+        } else {
+          this.broadcastChat(roomId, {
+            sender: 'Système',
+            text: `🎉 ${player.nickname} a trouvé ! (Orthographe imprécise : -20 pts | +20 pts bonus pour le dessinateur 🎁)`,
+            type: 'guessed_approx',
+          });
+        }
 
-        this.io.to(socketId).emit('you_guessed_correctly', { points: guesserPoints });
+        this.io.to(socketId).emit('you_guessed_correctly', { points: guesserPoints, isExact });
         this.broadcastRoomState(roomId);
 
         // Vérifier si tous les devineurs ont trouvé

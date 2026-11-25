@@ -218,7 +218,7 @@ export default function App() {
 
     socket.on('chat_message', (msg) => {
       setChatMessages((prev) => [...prev, msg]);
-      if (msg.type === 'guessed') {
+      if (msg.type === 'guessed' || msg.type === 'guessed_approx') {
         sound.playCorrect();
       } else if (msg.type === 'close') {
         sound.playClose();
@@ -695,7 +695,7 @@ export default function App() {
 
             {/* Colonne Centrale : Canvas & Toolbar */}
             <div className="flex-1 min-h-0 md:col-span-3 lg:col-span-3 flex flex-col justify-between overflow-hidden">
-              <div className="flex-1 min-h-0 max-h-[38vh] sm:max-h-[58vh] flex items-center justify-center">
+              <div className="shrink-0 w-full max-h-[44vh] sm:max-h-[58vh] flex items-center justify-center">
                 <Canvas
                   key={`canvas_${room.currentDrawerId}_round_${room.currentRound}`}
                   isDrawer={room.currentDrawerId === socket.id && room.state === 'DRAWING'}
@@ -703,7 +703,6 @@ export default function App() {
                   activeColor={activeColor}
                   brushSize={brushSize}
                   onDrawAction={handleDrawAction}
-                  externalAction={externalDrawAction}
                   onClear={() => handleDrawAction({ type: 'clear' })}
                 />
               </div>
@@ -728,7 +727,7 @@ export default function App() {
               )}
 
               {/* Version Mobile : Onglets [Chat] et [Joueurs] ajustables automatiquement */}
-              <div className="md:hidden flex-1 min-h-0 max-h-[46vh] flex flex-col overflow-hidden">
+              <div className="md:hidden flex-1 min-h-0 flex flex-col overflow-hidden">
                 <div className="flex items-center gap-1 mb-1 bg-slate-950 p-0.5 rounded-xl border border-slate-800 shrink-0">
                   <button
                     onClick={() => setMobileTab('chat')}
@@ -760,6 +759,7 @@ export default function App() {
                       isDrawer={room.currentDrawerId === socket.id && room.state === 'DRAWING'}
                       hasGuessed={room.players?.find((p) => p.id === socket.id || (p.userId && p.userId === getOrCreateUserId()))?.hasGuessed}
                       disabled={room.state !== 'DRAWING'}
+                      hintMask={room.hintMask}
                     />
                   ) : (
                     <div className="h-full overflow-y-auto">
@@ -782,6 +782,7 @@ export default function App() {
                 isDrawer={room.currentDrawerId === socket.id && room.state === 'DRAWING'}
                 hasGuessed={room.players?.find((p) => p.id === socket.id)?.hasGuessed}
                 disabled={room.state !== 'DRAWING'}
+                hintMask={room.hintMask}
               />
             </div>
           </div>
