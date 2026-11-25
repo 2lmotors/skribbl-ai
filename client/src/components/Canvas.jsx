@@ -208,7 +208,7 @@ export default function Canvas({
 
     if (action.type === 'end') {
       lastPointRef.current = null;
-      ctx.closePath();
+      // Ne PAS appeler ctx.closePath() pour les tracés à main levée, sinon les traits courbés se referment en boucle
     }
   }, [drawHollowShape, performUndo, saveUndoSnapshot]);
 
@@ -562,7 +562,9 @@ export default function Canvas({
   return (
     <div
       ref={containerRef}
-      className="relative w-full aspect-[16/10] bg-white rounded-2xl overflow-hidden shadow-2xl border-2 sm:border-4 border-slate-800 touch-none select-none"
+      className={`relative w-full aspect-[16/10] bg-white rounded-2xl overflow-hidden shadow-2xl border-2 sm:border-4 border-slate-800 select-none ${
+        isDrawer ? 'touch-none' : 'touch-pan-y'
+      }`}
     >
       {/* ── BARRE DE FORMES RAPIDES SUR LE HAUT DU DESSIN (DESSINATEUR UNIQUEMENT) ── */}
       {isDrawer && (

@@ -32,20 +32,13 @@ export default function Chat({
   };
 
   return (
-    <div className={`flex flex-col bg-slate-900/95 backdrop-blur border border-slate-700/80 rounded-2xl overflow-hidden shadow-xl transition-all duration-200 ${
-      isFocused ? 'h-auto max-h-[170px] sm:h-full sm:max-h-none' : 'h-full'
-    }`}>
-      {/* En-tête du Chat avec indice et bouton raccourci vers le dessin */}
-      <div className="px-3 py-1 sm:px-4 sm:py-2 bg-slate-950/80 border-b border-slate-800 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-1.5 sm:gap-2">
+    <div className="flex flex-col bg-slate-900/95 backdrop-blur border border-slate-700/80 rounded-2xl overflow-hidden shadow-xl h-full">
+      {/* En-tête du Chat avec bouton raccourci vers le dessin */}
+      <div className="px-3 py-1.5 sm:px-4 sm:py-2 bg-slate-950/80 border-b border-slate-800 flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-1.5">
           <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-300">
-            Chat
+            Chat & Propositions
           </span>
-          {hintMask && !hasGuessed && !isDrawer && (
-            <span className="text-[10px] sm:text-xs font-mono font-bold tracking-widest text-amber-400 bg-amber-950/60 border border-amber-500/30 px-1.5 py-0.5 rounded">
-              {hintMask}
-            </span>
-          )}
         </div>
 
         <div className="flex items-center gap-2">
@@ -57,7 +50,7 @@ export default function Chat({
               className="md:hidden flex items-center gap-1 text-[10px] font-bold text-indigo-300 bg-indigo-950/80 hover:bg-indigo-900 px-2 py-0.5 rounded-lg border border-indigo-500/40 transition active:scale-95"
             >
               <Eye className="w-3 h-3 text-indigo-400" />
-              <span>Dessin</span>
+              <span>Voir Dessin 🎨</span>
             </button>
           )}
           <span className="text-[10px] sm:text-xs text-slate-500">
@@ -66,12 +59,10 @@ export default function Chat({
         </div>
       </div>
 
-      {/* Zone des messages défilants (se compacte automatiquement quand le clavier mobile s'ouvre pour laisser le dessin visible) */}
+      {/* Zone des messages défilants */}
       <div
         ref={chatScrollRef}
-        className={`flex-1 min-h-0 p-2 sm:p-3 overflow-y-auto space-y-1 text-xs sm:text-sm select-text transition-all duration-200 ${
-          isFocused ? 'max-h-16 sm:max-h-none' : ''
-        }`}
+        className="flex-1 min-h-0 p-2 sm:p-3 overflow-y-auto space-y-1 text-xs sm:text-sm select-text"
       >
         {messages.map((msg, idx) => {
           if (msg.type === 'system') {
