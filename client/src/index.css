@@ -44,10 +44,7 @@ body {
   -webkit-overflow-scrolling: touch;
 }
 
-/* En jeu : le conteneur principal est figé à la hauteur visible (sans clavier) */
-#root.in-game {
-  overflow: hidden;
-}
+/* En jeu mobile : le body/html reste scrollable, le jeu est en position fixed via JS */
 
 /* Empêcher le scroll / pull-to-refresh lors du dessin tactile */
 .drawing-canvas {

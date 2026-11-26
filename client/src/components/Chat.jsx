@@ -157,8 +157,8 @@ export default function Chat({
         })}
       </div>
 
-      {/* Barre de saisie — le clavier iOS est géré par resizes-visual-viewport, pas besoin de pb artificiel */}
-      <form onSubmit={handleSubmit} className="p-2 pb-safe sm:pb-2 bg-slate-950/95 border-t border-slate-800 shrink-0 mt-auto">
+      {/* Barre de saisie — toujours visible, shrink-0, jamais poussée hors écran */}
+      <form onSubmit={handleSubmit} className="p-2 bg-slate-950/95 border-t border-slate-800 shrink-0">
         {hasGuessed ? (
           <div className="py-1.5 px-2.5 bg-emerald-950/40 border border-emerald-500/30 rounded-xl text-center text-xs font-semibold text-emerald-400 flex items-center justify-center gap-1.5">
             <CheckCircle2 className="w-3.5 h-3.5" />

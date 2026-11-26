@@ -59,6 +59,45 @@ export default function App() {
 
   // (viewportHeight supprimé — géré par resizes-visual-viewport dans le meta viewport)
 
+  // Hauteur du clavier détectée via visualViewport (cross-browser iOS + Android)
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (view !== 'game' || !room || room.state === 'LOBBY') {
+      setKeyboardHeight(0);
+      return;
+    }
+
+    const update = () => {
+      if (window.visualViewport) {
+        // Hauteur clavier = hauteur totale fenêtre - hauteur viewport visible - offset de scroll viewport
+        const kb = Math.max(0,
+          window.innerHeight
+          - window.visualViewport.height
+          - window.visualViewport.offsetTop
+        );
+        setKeyboardHeight(kb);
+      }
+    };
+
+    update();
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', update);
+      window.visualViewport.addEventListener('scroll', update);
+    }
+    window.addEventListener('resize', update);
+
+    return () => {
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', update);
+        window.visualViewport.removeEventListener('scroll', update);
+      }
+      window.removeEventListener('resize', update);
+      setKeyboardHeight(0);
+    };
+  }, [view, room?.state]);
+
   const scrollToCanvas = () => {
     if (canvasContainerRef.current) {
       canvasContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -696,8 +735,22 @@ export default function App() {
 
       {/* 4. VUE EN JEU MULTIJOUEUR */}
       {view === 'game' && room && room.state !== 'LOBBY' && (
-        <div 
-          className="w-full max-w-6xl mx-auto flex flex-col h-[100dvh] overflow-hidden p-1 sm:p-2.5"
+        <div
+          className="md:relative md:max-w-6xl md:mx-auto md:h-[100dvh] md:overflow-hidden md:p-2.5 flex flex-col"
+          style={{
+            // Mobile : position fixed couvrant toute la hauteur visible,
+            // paddingBottom repousse le contenu au-dessus du clavier
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            paddingBottom: keyboardHeight,
+            overflowY: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            padding: `4px 4px ${keyboardHeight}px 4px`,
+          }}
         >
           {/* Header de jeu */}
           <div className="shrink-0 mb-1">
@@ -729,7 +782,7 @@ export default function App() {
 
             {/* Colonne Centrale : Canvas & Toolbar */}
             <div className="flex-1 min-h-0 md:col-span-3 lg:col-span-3 flex flex-col overflow-visible sm:overflow-hidden">
-              <div ref={canvasContainerRef} className="shrink-0 w-full max-h-[38vh] sm:max-h-[58vh] flex items-center justify-center my-0.5">
+              <div ref={canvasContainerRef} className="shrink-0 w-full" style={{ maxHeight: '32vh' }}>
                 <Canvas
                   key={`canvas_${room.currentDrawerId}_round_${room.currentRound}`}
                   isDrawer={room.currentDrawerId === socket.id && room.state === 'DRAWING'}
