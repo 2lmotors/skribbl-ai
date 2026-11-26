@@ -177,10 +177,9 @@ export default function Chat({
               onChange={(e) => setInputText(e.target.value)}
               onFocus={() => {
                 setIsFocused(true);
-                // Défilement doux automatique pour garder le canvas et la saisie bien centrés
-                setTimeout(() => {
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }, 150);
+                window.scrollTo(0, 0);
+                document.documentElement.scrollTop = 0;
+                document.body.scrollTop = 0;
               }}
               onBlur={() => setIsFocused(false)}
               disabled={disabled}
