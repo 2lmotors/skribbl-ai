@@ -59,34 +59,37 @@ export default function App() {
 
   // (viewportHeight supprimé — géré par resizes-visual-viewport dans le meta viewport)
 
-  // Hauteur du clavier détectée via visualViewport (cross-browser iOS + Android)
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  // Position + taille du viewport visible (au-dessus du clavier) — fonctionne sur iOS ET Android
+  // iOS Safari : quand le clavier s'ouvre, visualViewport.height diminue ET offsetTop peut augmenter
+  //              → le conteneur fixed doit suivre top=offsetTop, height=visualViewport.height
+  // Android Chrome : même API, même comportement
+  const [vpBox, setVpBox] = useState({ top: 0, height: typeof window !== 'undefined' ? window.innerHeight : 800 });
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    if (view !== 'game' || !room || room.state === 'LOBBY') {
-      setKeyboardHeight(0);
-      return;
-    }
+
+    const isInGame = view === 'game' && room && room.state !== 'LOBBY';
 
     const update = () => {
       if (window.visualViewport) {
-        // Hauteur clavier = hauteur totale fenêtre - hauteur viewport visible - offset de scroll viewport
-        const kb = Math.max(0,
-          window.innerHeight
-          - window.visualViewport.height
-          - window.visualViewport.offsetTop
-        );
-        setKeyboardHeight(kb);
+        setVpBox({
+          top: window.visualViewport.offsetTop,
+          height: window.visualViewport.height,
+        });
+      } else {
+        setVpBox({ top: 0, height: window.innerHeight });
       }
     };
 
     update();
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', update);
-      window.visualViewport.addEventListener('scroll', update);
+
+    if (isInGame) {
+      if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', update);
+        window.visualViewport.addEventListener('scroll', update);
+      }
+      window.addEventListener('resize', update);
     }
-    window.addEventListener('resize', update);
 
     return () => {
       if (window.visualViewport) {
@@ -94,7 +97,6 @@ export default function App() {
         window.visualViewport.removeEventListener('scroll', update);
       }
       window.removeEventListener('resize', update);
-      setKeyboardHeight(0);
     };
   }, [view, room?.state]);
 
@@ -736,20 +738,20 @@ export default function App() {
       {/* 4. VUE EN JEU MULTIJOUEUR */}
       {view === 'game' && room && room.state !== 'LOBBY' && (
         <div
-          className="md:relative md:max-w-6xl md:mx-auto md:h-[100dvh] md:overflow-hidden md:p-2.5 flex flex-col"
+          className="flex flex-col overflow-hidden"
           style={{
-            // Mobile : position fixed couvrant toute la hauteur visible,
-            // paddingBottom repousse le contenu au-dessus du clavier
+            // position: fixed qui suit exactement la zone visible au-dessus du clavier
+            // iOS Safari : offsetTop > 0 quand le navigateur scroll pour focuser l'input
+            // Android Chrome : offsetTop = 0, height = innerHeight - keyboardHeight
             position: 'fixed',
-            top: 0,
+            top: vpBox.top,
             left: 0,
             right: 0,
-            bottom: 0,
-            paddingBottom: keyboardHeight,
-            overflowY: 'hidden',
+            height: vpBox.height,
+            overflow: 'hidden',
             display: 'flex',
             flexDirection: 'column',
-            padding: `4px 4px ${keyboardHeight}px 4px`,
+            padding: '4px',
           }}
         >
           {/* Header de jeu */}
