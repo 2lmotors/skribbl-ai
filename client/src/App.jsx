@@ -105,34 +105,6 @@ export default function App() {
     }
   }, [view, room?.state, room?.currentRound]);
 
-  // Verrouillage anti-décalage : n'activer QUE pendant le jeu en direct (quand le canvas de dessin est affiché)
-  // pour que le lobby et les réglages de salon restent 100% défilables normalement
-  useEffect(() => {
-    if (view !== 'game' || !room || room.state === 'LOBBY') return;
-
-    const lockScrollTop = () => {
-      if (window.scrollY !== 0 || document.documentElement.scrollTop !== 0 || document.body.scrollTop !== 0) {
-        window.scrollTo(0, 0);
-        document.documentElement.scrollTop = 0;
-        document.body.scrollTop = 0;
-      }
-    };
-
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', lockScrollTop);
-      window.visualViewport.addEventListener('scroll', lockScrollTop);
-    }
-    window.addEventListener('scroll', lockScrollTop);
-
-    return () => {
-      if (window.visualViewport) {
-        window.visualViewport.removeEventListener('resize', lockScrollTop);
-        window.visualViewport.removeEventListener('scroll', lockScrollTop);
-      }
-      window.removeEventListener('scroll', lockScrollTop);
-    };
-  }, [view, room?.state]);
-
   // Connexion automatique via lien d'invitation (?room=ABC123)
   const [urlRoomCode, setUrlRoomCode] = useState('');
   const [isAutoJoining, setIsAutoJoining] = useState(false);
@@ -742,8 +714,7 @@ export default function App() {
       {/* 4. VUE EN JEU MULTIJOUEUR */}
       {view === 'game' && room && room.state !== 'LOBBY' && (
         <div 
-          style={{ height: viewportHeight ? `${viewportHeight}px` : undefined }}
-          className="w-full max-w-6xl mx-auto flex flex-col p-1 sm:p-2.5 h-[100dvh] max-h-[100dvh] overflow-hidden"
+          className="w-full max-w-6xl mx-auto flex flex-col p-1 sm:p-2.5 min-h-[100dvh] sm:h-[100dvh] overflow-y-auto sm:overflow-hidden touch-pan-y pb-12 sm:pb-1"
         >
           {/* Header de jeu */}
           <div className="shrink-0 mb-1">
@@ -763,7 +734,7 @@ export default function App() {
           </div>
 
           {/* Grille Principale (Joueurs + Canvas + Chat) */}
-          <div className="flex-1 min-h-0 flex flex-col md:grid md:grid-cols-4 lg:grid-cols-5 gap-1.5 sm:gap-3 overflow-hidden">
+          <div className="flex-1 min-h-0 flex flex-col md:grid md:grid-cols-4 lg:grid-cols-5 gap-1.5 sm:gap-3 overflow-visible sm:overflow-hidden">
             {/* Colonne Gauche (Desktop uniquement) : Liste des Joueurs */}
             <div className="hidden md:block md:col-span-1 overflow-y-auto">
               <PlayerList
@@ -774,8 +745,8 @@ export default function App() {
             </div>
 
             {/* Colonne Centrale : Canvas & Toolbar */}
-            <div className="flex-1 min-h-0 md:col-span-3 lg:col-span-3 flex flex-col overflow-hidden">
-              <div ref={canvasContainerRef} className="shrink-0 w-full max-h-[36vh] sm:max-h-[58vh] flex items-center justify-center my-0.5">
+            <div className="flex-1 min-h-0 md:col-span-3 lg:col-span-3 flex flex-col overflow-visible sm:overflow-hidden">
+              <div ref={canvasContainerRef} className="shrink-0 w-full max-h-[38vh] sm:max-h-[58vh] flex items-center justify-center my-0.5">
                 <Canvas
                   key={`canvas_${room.currentDrawerId}_round_${room.currentRound}`}
                   isDrawer={room.currentDrawerId === socket.id && room.state === 'DRAWING'}
@@ -807,11 +778,11 @@ export default function App() {
               )}
 
               {/* Version Mobile : Onglets [Chat] et [Joueurs] */}
-              <div className="md:hidden flex-1 min-h-0 flex flex-col pb-1 mt-0.5">
+              <div className="md:hidden flex flex-col pb-4 mt-1">
                 <div className="flex items-center gap-1 mb-1 bg-slate-950 p-0.5 rounded-xl border border-slate-800 shrink-0">
                   <button
                     onClick={() => setMobileTab('chat')}
-                    className={`flex-1 py-1 px-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                    className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
                       mobileTab === 'chat'
                         ? 'bg-indigo-600 text-white shadow-sm'
                         : 'text-slate-400 hover:text-white'
@@ -821,7 +792,7 @@ export default function App() {
                   </button>
                   <button
                     onClick={() => setMobileTab('players')}
-                    className={`flex-1 py-1 px-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                    className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
                       mobileTab === 'players'
                         ? 'bg-indigo-600 text-white shadow-sm'
                         : 'text-slate-400 hover:text-white'
@@ -831,7 +802,7 @@ export default function App() {
                   </button>
                 </div>
 
-                <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+                <div className="h-[250px] flex flex-col">
                   {mobileTab === 'chat' ? (
                     <Chat
                       messages={chatMessages}
@@ -843,7 +814,7 @@ export default function App() {
                       onScrollToDrawing={scrollToCanvas}
                     />
                   ) : (
-                    <div className="h-full overflow-y-auto">
+                    <div className="h-[250px] overflow-y-auto">
                       <PlayerList
                         players={room.players || []}
                         currentDrawerId={room.currentDrawerId}
