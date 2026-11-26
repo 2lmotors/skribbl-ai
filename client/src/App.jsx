@@ -57,42 +57,25 @@ export default function App() {
   const currentRoomCodeRef = useRef(sessionStorage.getItem('CURRENT_ROOM_CODE') || '');
   const canvasContainerRef = useRef(null);
 
-  // Hauteur du viewport dynamique pour iPhone / Safari mobile (évite que le clavier ne masque la barre de saisie)
-  const [viewportHeight, setViewportHeight] = useState(null);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const updateHeight = () => {
-      if (window.visualViewport) {
-        setViewportHeight(window.visualViewport.height);
-      } else {
-        setViewportHeight(window.innerHeight);
-      }
-    };
-
-    updateHeight();
-
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', updateHeight);
-      window.visualViewport.addEventListener('scroll', updateHeight);
-    }
-    window.addEventListener('resize', updateHeight);
-
-    return () => {
-      if (window.visualViewport) {
-        window.visualViewport.removeEventListener('resize', updateHeight);
-        window.visualViewport.removeEventListener('scroll', updateHeight);
-      }
-      window.removeEventListener('resize', updateHeight);
-    };
-  }, []);
+  // (viewportHeight supprimé — géré par resizes-visual-viewport dans le meta viewport)
 
   const scrollToCanvas = () => {
     if (canvasContainerRef.current) {
       canvasContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   };
+
+  // Ajoute/retire la classe CSS in-game sur #root pour bloquer le scroll global pendant la partie
+  useEffect(() => {
+    const root = document.getElementById('root');
+    if (!root) return;
+    if (view === 'game' && room && room.state !== 'LOBBY') {
+      root.classList.add('in-game');
+    } else {
+      root.classList.remove('in-game');
+    }
+    return () => root.classList.remove('in-game');
+  }, [view, room?.state]);
 
   // Recommencer toujours en haut de page (0,0) à chaque entrée dans le jeu ou nouveau tour
   useEffect(() => {
@@ -714,7 +697,7 @@ export default function App() {
       {/* 4. VUE EN JEU MULTIJOUEUR */}
       {view === 'game' && room && room.state !== 'LOBBY' && (
         <div 
-          className="w-full max-w-6xl mx-auto flex flex-col p-1 sm:p-2.5 min-h-[100dvh] sm:h-[100dvh] overflow-y-auto sm:overflow-hidden touch-pan-y pb-12 sm:pb-1"
+          className="w-full max-w-6xl mx-auto flex flex-col h-[100dvh] overflow-hidden p-1 sm:p-2.5"
         >
           {/* Header de jeu */}
           <div className="shrink-0 mb-1">
@@ -778,7 +761,7 @@ export default function App() {
               )}
 
               {/* Version Mobile : Onglets [Chat] et [Joueurs] */}
-              <div className="md:hidden flex flex-col pb-4 mt-1">
+              <div className="md:hidden flex-1 min-h-0 flex flex-col mt-1">
                 <div className="flex items-center gap-1 mb-1 bg-slate-950 p-0.5 rounded-xl border border-slate-800 shrink-0">
                   <button
                     onClick={() => setMobileTab('chat')}
@@ -802,7 +785,7 @@ export default function App() {
                   </button>
                 </div>
 
-                <div className="h-[250px] flex flex-col">
+                <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
                   {mobileTab === 'chat' ? (
                     <Chat
                       messages={chatMessages}
@@ -814,7 +797,7 @@ export default function App() {
                       onScrollToDrawing={scrollToCanvas}
                     />
                   ) : (
-                    <div className="h-[250px] overflow-y-auto">
+                    <div className="flex-1 min-h-0 overflow-y-auto">
                       <PlayerList
                         players={room.players || []}
                         currentDrawerId={room.currentDrawerId}
