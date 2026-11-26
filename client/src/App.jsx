@@ -59,15 +59,16 @@ export default function App() {
 
   // (viewportHeight supprimé — géré par resizes-visual-viewport dans le meta viewport)
 
-  // Détection iOS Safari (la barre d'accessoires clavier n'est PAS déduite de visualViewport.height)
+  // Détection iOS Safari (la barre d'accessoires clavier n'est PAS toujours déduite de visualViewport.height)
   const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const isStandalone = typeof window !== 'undefined' && (window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches);
 
   // Position + taille du viewport visible (au-dessus du clavier) — fonctionne sur iOS ET Android
-  // iOS Safari : quand le clavier s'ouvre, visualViewport.height diminue ET offsetTop peut augmenter
-  //   MAIS la barre d'accessoires clavier (↑↓ ✓, ~50px) n'est pas comptée dans visualViewport.height
-  //   → il faut la soustraire pour éviter que le contenu passe sous la barre
-  // Android Chrome : même API, sans barre d'accessoires → pas de correction nécessaire
-  const [vpBox, setVpBox] = useState({ top: 0, height: typeof window !== 'undefined' ? window.innerHeight : 800 });
+  const [vpBox, setVpBox] = useState({
+    top: 0,
+    height: typeof window !== 'undefined' ? window.innerHeight : 800,
+    isKeyboardOpen: false,
+  });
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -78,21 +79,18 @@ export default function App() {
       if (window.visualViewport) {
         const vvTop = window.visualViewport.offsetTop;
         let vvHeight = window.visualViewport.height;
+        const refHeight = isIOS ? window.screen.height : Math.max(window.innerHeight, window.screen.height * 0.85);
+        const keyboardOpen = vvHeight < refHeight * 0.78;
 
-        // Sur iOS Safari, la barre d'accessoires (auto-remplissage, navigation ↑↓ ✓)
-        // se superpose au contenu sans être comptée dans visualViewport.height.
-        // On détecte le clavier ouvert = hauteur visible < 85% de la hauteur totale de l'écran.
-        // Dans ce cas, on soustrait 54px (hauteur typique de la barre d'accessoires iOS).
-        if (isIOS) {
-          const keyboardOpen = vvHeight < window.screen.height * 0.85;
-          if (keyboardOpen) {
-            vvHeight = Math.max(300, vvHeight - 54);
-          }
+        // Sur iOS Safari (hors PWA standalone), la barre d'accessoires (↑↓ ✓) (~44px)
+        // peut empiéter sur le bas de visualViewport.height.
+        if (isIOS && !isStandalone && keyboardOpen) {
+          vvHeight = Math.max(280, vvHeight - 44);
         }
 
-        setVpBox({ top: vvTop, height: vvHeight });
+        setVpBox({ top: vvTop, height: vvHeight, isKeyboardOpen: keyboardOpen });
       } else {
-        setVpBox({ top: 0, height: window.innerHeight });
+        setVpBox({ top: 0, height: window.innerHeight, isKeyboardOpen: false });
       }
     };
 
@@ -799,7 +797,18 @@ export default function App() {
 
             {/* Colonne Centrale : Canvas & Toolbar */}
             <div className="flex-1 min-h-0 md:col-span-3 lg:col-span-3 flex flex-col overflow-visible sm:overflow-hidden">
-              <div ref={canvasContainerRef} className="shrink-0 w-full" style={{ maxHeight: '32vh' }}>
+              <div
+                ref={canvasContainerRef}
+                className="shrink-0 w-full flex items-center justify-center my-0.5 overflow-hidden"
+                style={{
+                  height: typeof window !== 'undefined' && window.innerWidth < 768
+                    ? `${vpBox.isKeyboardOpen
+                        ? Math.max(115, Math.min(175, Math.round(vpBox.height * 0.36)))
+                        : Math.min(250, Math.round(vpBox.height * 0.34))}px`
+                    : undefined,
+                  maxHeight: '58vh',
+                }}
+              >
                 <Canvas
                   key={`canvas_${room.currentDrawerId}_round_${room.currentRound}`}
                   isDrawer={room.currentDrawerId === socket.id && room.state === 'DRAWING'}
@@ -830,33 +839,35 @@ export default function App() {
                 </div>
               )}
 
-              {/* Version Mobile : Onglets [Chat] et [Joueurs] */}
+              {/* Version Mobile : Onglets [Chat] et [Joueurs] (masqués quand le clavier est ouvert pour maximiser l'espace chat+saisie) */}
               <div className="md:hidden flex-1 min-h-0 flex flex-col mt-1">
-                <div className="flex items-center gap-1 mb-1 bg-slate-950 p-0.5 rounded-xl border border-slate-800 shrink-0">
-                  <button
-                    onClick={() => setMobileTab('chat')}
-                    className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
-                      mobileTab === 'chat'
-                        ? 'bg-indigo-600 text-white shadow-sm'
-                        : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    <span>💬 Chat & Propositions</span>
-                  </button>
-                  <button
-                    onClick={() => setMobileTab('players')}
-                    className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
-                      mobileTab === 'players'
-                        ? 'bg-indigo-600 text-white shadow-sm'
-                        : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    <span>👥 Joueurs ({room.players?.length || 0})</span>
-                  </button>
-                </div>
+                {!vpBox.isKeyboardOpen && (
+                  <div className="flex items-center gap-1 mb-1 bg-slate-950 p-0.5 rounded-xl border border-slate-800 shrink-0">
+                    <button
+                      onClick={() => setMobileTab('chat')}
+                      className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                        mobileTab === 'chat'
+                          ? 'bg-indigo-600 text-white shadow-sm'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <span>💬 Chat & Propositions</span>
+                    </button>
+                    <button
+                      onClick={() => setMobileTab('players')}
+                      className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                        mobileTab === 'players'
+                          ? 'bg-indigo-600 text-white shadow-sm'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <span>👥 Joueurs ({room.players?.length || 0})</span>
+                    </button>
+                  </div>
+                )}
 
                 <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-                  {mobileTab === 'chat' ? (
+                  {(mobileTab === 'chat' || vpBox.isKeyboardOpen) ? (
                     <Chat
                       messages={chatMessages}
                       onSendMessage={handleSendMessage}
@@ -865,6 +876,7 @@ export default function App() {
                       disabled={room.state !== 'DRAWING'}
                       hintMask={room.hintMask}
                       onScrollToDrawing={scrollToCanvas}
+                      compact={vpBox.isKeyboardOpen}
                     />
                   ) : (
                     <div className="flex-1 min-h-0 overflow-y-auto">

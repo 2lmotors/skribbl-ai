@@ -10,6 +10,7 @@ export default function Chat({
   disabled,
   hintMask = '',
   onScrollToDrawing,
+  compact = false,
 }) {
   const [inputText, setInputText] = useState('');
   const [isFocused, setIsFocused] = useState(false);
@@ -33,31 +34,33 @@ export default function Chat({
 
   return (
     <div className="flex flex-col bg-slate-900/95 backdrop-blur border border-slate-700/80 rounded-2xl overflow-hidden shadow-xl h-full">
-      {/* En-tête du Chat avec bouton raccourci vers le dessin */}
-      <div className="px-3 py-1.5 sm:px-4 sm:py-2 bg-slate-950/80 border-b border-slate-800 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-1.5">
-          <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-300">
-            Chat & Propositions
-          </span>
-        </div>
+      {/* En-tête du Chat (masqué en mode compact clavier ouvert pour maximiser les messages visibles) */}
+      {!compact && (
+        <div className="px-3 py-1.5 sm:px-4 sm:py-2 bg-slate-950/80 border-b border-slate-800 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-300">
+              Chat & Propositions
+            </span>
+          </div>
 
-        <div className="flex items-center gap-2">
-          {onScrollToDrawing && (
-            <button
-              type="button"
-              onClick={onScrollToDrawing}
-              title="Voir le dessin en cours"
-              className="md:hidden flex items-center gap-1 text-[10px] font-bold text-indigo-300 bg-indigo-950/80 hover:bg-indigo-900 px-2 py-0.5 rounded-lg border border-indigo-500/40 transition active:scale-95"
-            >
-              <Eye className="w-3 h-3 text-indigo-400" />
-              <span>Voir Dessin 🎨</span>
-            </button>
-          )}
-          <span className="text-[10px] sm:text-xs text-slate-500">
-            {messages.length} msgs
-          </span>
+          <div className="flex items-center gap-2">
+            {onScrollToDrawing && (
+              <button
+                type="button"
+                onClick={onScrollToDrawing}
+                title="Voir le dessin en cours"
+                className="md:hidden flex items-center gap-1 text-[10px] font-bold text-indigo-300 bg-indigo-950/80 hover:bg-indigo-900 px-2 py-0.5 rounded-lg border border-indigo-500/40 transition active:scale-95"
+              >
+                <Eye className="w-3 h-3 text-indigo-400" />
+                <span>Voir Dessin 🎨</span>
+              </button>
+            )}
+            <span className="text-[10px] sm:text-xs text-slate-500">
+              {messages.length} msgs
+            </span>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Zone des messages défilants */}
       <div
