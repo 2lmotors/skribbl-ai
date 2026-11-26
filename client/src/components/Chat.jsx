@@ -172,6 +172,8 @@ export default function Chat({
           <div className="flex items-center gap-1.5">
             <input
               type="text"
+              inputMode="text"
+              enterKeyHint="send"
               placeholder="Tape ta proposition ici..."
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}

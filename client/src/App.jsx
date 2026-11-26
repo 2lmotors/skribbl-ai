@@ -59,10 +59,14 @@ export default function App() {
 
   // (viewportHeight supprimé — géré par resizes-visual-viewport dans le meta viewport)
 
+  // Détection iOS Safari (la barre d'accessoires clavier n'est PAS déduite de visualViewport.height)
+  const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
+
   // Position + taille du viewport visible (au-dessus du clavier) — fonctionne sur iOS ET Android
   // iOS Safari : quand le clavier s'ouvre, visualViewport.height diminue ET offsetTop peut augmenter
-  //              → le conteneur fixed doit suivre top=offsetTop, height=visualViewport.height
-  // Android Chrome : même API, même comportement
+  //   MAIS la barre d'accessoires clavier (↑↓ ✓, ~50px) n'est pas comptée dans visualViewport.height
+  //   → il faut la soustraire pour éviter que le contenu passe sous la barre
+  // Android Chrome : même API, sans barre d'accessoires → pas de correction nécessaire
   const [vpBox, setVpBox] = useState({ top: 0, height: typeof window !== 'undefined' ? window.innerHeight : 800 });
 
   useEffect(() => {
@@ -72,10 +76,21 @@ export default function App() {
 
     const update = () => {
       if (window.visualViewport) {
-        setVpBox({
-          top: window.visualViewport.offsetTop,
-          height: window.visualViewport.height,
-        });
+        const vvTop = window.visualViewport.offsetTop;
+        let vvHeight = window.visualViewport.height;
+
+        // Sur iOS Safari, la barre d'accessoires (auto-remplissage, navigation ↑↓ ✓)
+        // se superpose au contenu sans être comptée dans visualViewport.height.
+        // On détecte le clavier ouvert = hauteur visible < 85% de la hauteur totale de l'écran.
+        // Dans ce cas, on soustrait 54px (hauteur typique de la barre d'accessoires iOS).
+        if (isIOS) {
+          const keyboardOpen = vvHeight < window.screen.height * 0.85;
+          if (keyboardOpen) {
+            vvHeight = Math.max(300, vvHeight - 54);
+          }
+        }
+
+        setVpBox({ top: vvTop, height: vvHeight });
       } else {
         setVpBox({ top: 0, height: window.innerHeight });
       }
