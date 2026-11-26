@@ -57,6 +57,37 @@ export default function App() {
   const currentRoomCodeRef = useRef(sessionStorage.getItem('CURRENT_ROOM_CODE') || '');
   const canvasContainerRef = useRef(null);
 
+  // Hauteur du viewport dynamique pour iPhone / Safari mobile (évite que le clavier ne masque la barre de saisie)
+  const [viewportHeight, setViewportHeight] = useState(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const updateHeight = () => {
+      if (window.visualViewport) {
+        setViewportHeight(window.visualViewport.height);
+      } else {
+        setViewportHeight(window.innerHeight);
+      }
+    };
+
+    updateHeight();
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', updateHeight);
+      window.visualViewport.addEventListener('scroll', updateHeight);
+    }
+    window.addEventListener('resize', updateHeight);
+
+    return () => {
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', updateHeight);
+        window.visualViewport.removeEventListener('scroll', updateHeight);
+      }
+      window.removeEventListener('resize', updateHeight);
+    };
+  }, []);
+
   const scrollToCanvas = () => {
     if (canvasContainerRef.current) {
       canvasContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -710,7 +741,10 @@ export default function App() {
 
       {/* 4. VUE EN JEU MULTIJOUEUR */}
       {view === 'game' && room && room.state !== 'LOBBY' && (
-        <div className="w-full max-w-6xl mx-auto flex flex-col p-1 sm:p-2.5 h-[100dvh] max-h-[100dvh] overflow-hidden">
+        <div 
+          style={{ height: viewportHeight ? `${viewportHeight}px` : undefined }}
+          className="w-full max-w-6xl mx-auto flex flex-col p-1 sm:p-2.5 h-[100dvh] max-h-[100dvh] overflow-hidden"
+        >
           {/* Header de jeu */}
           <div className="shrink-0 mb-1">
             <GameHeader

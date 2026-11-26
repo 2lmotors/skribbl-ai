@@ -187,7 +187,7 @@ export default function Chat({
               autoCorrect="off"
               autoCapitalize="none"
               spellCheck="false"
-              className="flex-1 px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition"
+              className="flex-1 px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-[16px] sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition"
             />
             <button
               type="submit"
