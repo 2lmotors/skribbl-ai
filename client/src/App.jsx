@@ -74,8 +74,11 @@ export default function App() {
     }
   }, [view, room?.state, room?.currentRound]);
 
-  // Verrouillage anti-décalage : empêcher le navigateur mobile de faire défiler la zone de dessin hors-champ lors de l'ouverture du clavier
+  // Verrouillage anti-décalage : n'activer QUE pendant le jeu en direct (quand le canvas de dessin est affiché)
+  // pour que le lobby et les réglages de salon restent 100% défilables normalement
   useEffect(() => {
+    if (view !== 'game' || !room || room.state === 'LOBBY') return;
+
     const lockScrollTop = () => {
       if (window.scrollY !== 0 || document.documentElement.scrollTop !== 0 || document.body.scrollTop !== 0) {
         window.scrollTo(0, 0);
@@ -97,7 +100,7 @@ export default function App() {
       }
       window.removeEventListener('scroll', lockScrollTop);
     };
-  }, []);
+  }, [view, room?.state]);
 
   // Connexion automatique via lien d'invitation (?room=ABC123)
   const [urlRoomCode, setUrlRoomCode] = useState('');
