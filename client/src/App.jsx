@@ -63,6 +63,9 @@ export default function App() {
   const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
   const isStandalone = typeof window !== 'undefined' && (window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches);
 
+  // Hauteur de référence (clavier fermé) pour détecter fiablement l'ouverture du clavier sur iOS et Android
+  const baseViewportHeightRef = useRef(typeof window !== 'undefined' ? window.innerHeight : 800);
+
   // Position + taille du viewport visible (au-dessus du clavier) — fonctionne sur iOS ET Android
   const [vpBox, setVpBox] = useState({
     top: 0,
@@ -74,16 +77,23 @@ export default function App() {
     if (typeof window === 'undefined') return;
 
     const isInGame = view === 'game' && room && room.state !== 'LOBBY';
+    baseViewportHeightRef.current = window.visualViewport ? window.visualViewport.height : window.innerHeight;
 
     const update = () => {
       if (window.visualViewport) {
         const vvTop = window.visualViewport.offsetTop;
         let vvHeight = window.visualViewport.height;
-        const refHeight = isIOS ? window.screen.height : Math.max(window.innerHeight, window.screen.height * 0.85);
-        const keyboardOpen = vvHeight < refHeight * 0.78;
+
+        // Si le viewport grandit (rotation ou fermeture clavier), on met à jour la hauteur de base
+        if (vvHeight > baseViewportHeightRef.current) {
+          baseViewportHeightRef.current = vvHeight;
+        }
+
+        // Un clavier virtuel réduit le viewport d'au moins 120px par rapport à la hauteur de base
+        const keyboardOpen = (baseViewportHeightRef.current - vvHeight) > 120;
 
         // Sur iOS Safari (hors PWA standalone), la barre d'accessoires (↑↓ ✓) (~44px)
-        // peut empiéter sur le bas de visualViewport.height.
+        // peut empiéter sur le bas de visualViewport.height quand le clavier est ouvert.
         if (isIOS && !isStandalone && keyboardOpen) {
           vvHeight = Math.max(280, vvHeight - 44);
         }
@@ -94,6 +104,13 @@ export default function App() {
       }
     };
 
+    const handleOrientation = () => {
+      setTimeout(() => {
+        baseViewportHeightRef.current = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+        update();
+      }, 150);
+    };
+
     update();
 
     if (isInGame) {
@@ -102,6 +119,7 @@ export default function App() {
         window.visualViewport.addEventListener('scroll', update);
       }
       window.addEventListener('resize', update);
+      window.addEventListener('orientationchange', handleOrientation);
     }
 
     return () => {
@@ -110,6 +128,7 @@ export default function App() {
         window.visualViewport.removeEventListener('scroll', update);
       }
       window.removeEventListener('resize', update);
+      window.removeEventListener('orientationchange', handleOrientation);
     };
   }, [view, room?.state]);
 
@@ -801,12 +820,12 @@ export default function App() {
                 ref={canvasContainerRef}
                 className="shrink-0 w-full flex items-center justify-center my-0.5 overflow-hidden"
                 style={{
-                  height: typeof window !== 'undefined' && window.innerWidth < 768
-                    ? `${vpBox.isKeyboardOpen
-                        ? Math.max(115, Math.min(175, Math.round(vpBox.height * 0.36)))
-                        : Math.min(250, Math.round(vpBox.height * 0.34))}px`
+                  height: (typeof window !== 'undefined' && window.innerWidth < 768 && vpBox.isKeyboardOpen)
+                    ? `${Math.max(115, Math.min(175, Math.round(vpBox.height * 0.36)))}px`
                     : undefined,
-                  maxHeight: '58vh',
+                  maxHeight: (typeof window !== 'undefined' && window.innerWidth < 768 && !vpBox.isKeyboardOpen)
+                    ? '45vh'
+                    : '58vh',
                 }}
               >
                 <Canvas
@@ -817,6 +836,7 @@ export default function App() {
                   brushSize={brushSize}
                   onDrawAction={handleDrawAction}
                   onClear={() => handleDrawAction({ type: 'clear' })}
+                  compact={typeof window !== 'undefined' && window.innerWidth < 768 && vpBox.isKeyboardOpen}
                 />
               </div>
 

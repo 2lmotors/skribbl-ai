@@ -16,6 +16,7 @@ export default function Canvas({
   onSnapshotReady,
   onClear,
   onUndo,
+  compact = false,
 }) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
@@ -562,7 +563,9 @@ export default function Canvas({
   return (
     <div
       ref={containerRef}
-      className={`relative h-full md:h-auto md:w-full max-w-full max-h-full aspect-[16/10] bg-white rounded-2xl overflow-hidden shadow-2xl border-2 sm:border-4 border-slate-800 select-none ${
+      className={`relative ${
+        compact ? 'h-full w-auto max-w-full' : 'w-full max-h-full'
+      } aspect-[16/10] bg-white rounded-2xl overflow-hidden shadow-2xl border-2 sm:border-4 border-slate-800 select-none ${
         isDrawer ? 'touch-none' : 'touch-pan-y'
       }`}
     >
