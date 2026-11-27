@@ -37,6 +37,7 @@ export default function App() {
   const [roundEndData, setRoundEndData] = useState(null);
   const [secretWord, setSecretWord] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [antiCheatWarning, setAntiCheatWarning] = useState('');
   const [mobileTab, setMobileTab] = useState('chat'); // 'chat' | 'players'
   const [soloConfig, setSoloConfig] = useState({ category: 'all', rounds: 3, duration: 60 });
 
@@ -314,6 +315,11 @@ export default function App() {
         setRoundEndData(null);
       }
 
+      // Fermer immédiatement la sélection de mot si on n'est plus en phase SELECTING_WORD
+      if (state.state !== 'SELECTING_WORD') {
+        setWordChoices([]);
+      }
+
       if (state.state === 'ROUND_OVER') {
         if (state.secretWord) {
           setSecretWord(state.secretWord);
@@ -342,6 +348,15 @@ export default function App() {
 
     socket.on('your_secret_word', ({ word }) => {
       setSecretWord(word);
+      setWordChoices([]);
+    });
+
+    socket.on('anti_cheat_warning', ({ message }) => {
+      setAntiCheatWarning(message);
+      sound.playClose();
+      setTimeout(() => {
+        setAntiCheatWarning('');
+      }, 7000);
     });
 
     socket.on('you_guessed_correctly', ({ points }) => {
@@ -387,6 +402,7 @@ export default function App() {
       socket.off('draw_event');
       socket.off('choose_word_prompt');
       socket.off('your_secret_word');
+      socket.off('anti_cheat_warning');
       socket.off('you_guessed_correctly');
       socket.off('timer_tick');
       socket.off('hint_updated');
@@ -418,7 +434,7 @@ export default function App() {
 
   const handleSelectWord = (word) => {
     if (room && room.roomId) {
-      socket.emit('select_word', { roomId: room.roomId, word });
+      socket.emit('select_word', { roomId: room.roomId, word, userId: getOrCreateUserId() });
       setWordChoices([]);
       setSecretWord(word);
     }
@@ -491,6 +507,14 @@ export default function App() {
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 py-2 px-4 bg-rose-600 text-white rounded-xl shadow-2xl font-bold text-xs flex items-center gap-2 animate-bounce">
           <span>⚠️ {errorMsg}</span>
           <button onClick={() => setErrorMsg('')} className="ml-2 font-black">&times;</button>
+        </div>
+      )}
+
+      {/* Avertissement Anti-Triche (lettres ou mot détectés sur le dessin) */}
+      {antiCheatWarning && (
+        <div className="fixed top-14 left-1/2 -translate-x-1/2 z-50 w-[92%] max-w-md py-3 px-4 bg-rose-700/95 border-2 border-amber-400 text-white rounded-2xl shadow-2xl font-extrabold text-xs sm:text-sm flex items-center justify-between gap-3 animate-bounce">
+          <span>🚨 {antiCheatWarning}</span>
+          <button onClick={() => setAntiCheatWarning('')} className="text-lg font-black shrink-0">&times;</button>
         </div>
       )}
 
@@ -835,6 +859,7 @@ export default function App() {
                   activeColor={activeColor}
                   brushSize={brushSize}
                   onDrawAction={handleDrawAction}
+                  onSnapshotReady={(dataUrl) => handleDrawAction({ type: 'snapshot', snapshot: dataUrl })}
                   onClear={() => handleDrawAction({ type: 'clear' })}
                   compact={typeof window !== 'undefined' && window.innerWidth < 768 && vpBox.isKeyboardOpen}
                 />
@@ -931,6 +956,8 @@ export default function App() {
       {wordChoices.length > 0 && (
         <WordSelector
           choices={wordChoices}
+          timeout={20}
+          timeRemaining={room?.timeRemaining}
           onSelect={handleSelectWord}
         />
       )}

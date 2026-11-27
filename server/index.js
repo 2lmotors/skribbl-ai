@@ -146,8 +146,8 @@ io.on('connection', (socket) => {
   });
 
   // Choix du mot par le dessinateur
-  socket.on('select_word', ({ roomId, word }) => {
-    roomManager.confirmWordChoice(roomId, socket.id, word);
+  socket.on('select_word', ({ roomId, word, userId }) => {
+    roomManager.confirmWordChoice(roomId, socket.id, word, userId);
   });
 
   // Action de dessin (tracé, gomme, pot de peinture, effacer)

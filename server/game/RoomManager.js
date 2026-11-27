@@ -1,5 +1,5 @@
 import { getRandomWordChoices, checkWordMatch, isWordMatch, normalizeStrict, normalizeLoose, getLevenshteinDistance } from './words.js';
-import { guessDrawingWithAI } from './aiGuesser.js';
+import { guessDrawingWithAI, detectTextInDrawing } from './aiGuesser.js';
 
 export class RoomManager {
   constructor(io) {
@@ -323,8 +323,11 @@ export class RoomManager {
     });
     room.canvasActions = [];
     room.lastImageSnapshot = null;
+    room.antiCheatLastCheck = 0;
+    room.antiCheatLastPenalty = 0;
+    room.antiCheatInProgress = false;
     room.state = 'SELECTING_WORD';
-    room.timeRemaining = 15; // 15 secondes pour choisir
+    room.timeRemaining = 20; // 20 secondes pour choisir
 
     // Effacer immédiatement le dessin chez tous les joueurs pour le nouveau tour
     this.io.to(roomId).emit('draw_event', { type: 'clear' });
@@ -335,7 +338,7 @@ export class RoomManager {
     room.hintMask = '';
 
     this.broadcastRoomState(roomId);
-    this.io.to(drawer.id).emit('choose_word_prompt', { choices: room.wordChoices, timeout: 15 });
+    this.io.to(drawer.id).emit('choose_word_prompt', { choices: room.wordChoices, timeout: 20 });
 
     // Timer de sélection
     room.timer = setInterval(() => {
@@ -344,34 +347,49 @@ export class RoomManager {
         clearInterval(room.timer);
         // Choix automatique si non répondu
         const autoWord = room.wordChoices[Math.floor(Math.random() * room.wordChoices.length)];
-        this.confirmWordChoice(roomId, drawer.id, autoWord);
+        this.confirmWordChoice(roomId, drawer.id, autoWord, drawer.userId);
       } else {
         this.io.to(roomId).emit('timer_tick', { timeRemaining: room.timeRemaining });
       }
     }, 1000);
   }
 
-  confirmWordChoice(roomId, socketId, word) {
+  confirmWordChoice(roomId, socketId, word, userId = null) {
     const room = this.rooms.get(roomId);
-    if (!room || room.currentDrawerId !== socketId || room.state !== 'SELECTING_WORD') return;
+    if (!room || room.state !== 'SELECTING_WORD') return;
+
+    const currentDrawer = room.players.get(room.currentDrawerId);
+    const isSameSocket = room.currentDrawerId === socketId;
+    const isSameUser = Boolean(userId && currentDrawer && currentDrawer.userId === userId);
+    if (!isSameSocket && !isSameUser) return;
+
+    const activeDrawerId = isSameSocket ? socketId : currentDrawer.id;
 
     if (room.timer) clearInterval(room.timer);
 
-    room.currentWord = word;
-    if (room.usedWords && word) {
-      room.usedWords.add(normalizeStrict(word));
+    // Garantir que le mot retenu fait bien partie des 3 propositions du tour
+    const chosenWord = (room.wordChoices && room.wordChoices.includes(word))
+      ? word
+      : (room.wordChoices?.[0] || word);
+
+    room.currentWord = chosenWord;
+    if (room.usedWords && chosenWord) {
+      room.usedWords.add(normalizeStrict(chosenWord));
     }
     room.state = 'DRAWING';
     room.timeRemaining = room.settings.roundDuration;
-    room.hintMask = this.generateHintMask(word, 0);
+    room.hintMask = this.generateHintMask(chosenWord, 0);
 
     // Effacer à nouveau pour être certain que la toile est vierge pour le nouveau mot
     this.io.to(roomId).emit('draw_event', { type: 'clear' });
 
+    // Synchroniser impérativement le mot secret exact côté dessinateur
+    this.io.to(activeDrawerId).emit('your_secret_word', { word: chosenWord });
+
     this.broadcastRoomState(roomId);
     this.broadcastChat(roomId, {
       sender: 'Système',
-      text: `${room.players.get(socketId)?.nickname} est en train de dessiner ! 🎨`,
+      text: `${room.players.get(activeDrawerId)?.nickname} est en train de dessiner ! 🎨`,
       type: 'system',
     });
 
@@ -393,6 +411,11 @@ export class RoomManager {
 
       this.io.to(roomId).emit('timer_tick', { timeRemaining: room.timeRemaining });
 
+      // Anti-triche visuel : détection de lettres ou mots sur le dessin toutes les 4s
+      if (room.lastImageSnapshot && room.canvasActions.length >= 2 && room.timeRemaining % 4 === 0) {
+        this.checkAntiCheatDrawing(room);
+      }
+
       // Si le bot IA participe, tenter une devinette
       if (room.settings.enableAiPlayer && room.lastImageSnapshot && room.timeRemaining % 7 === 0) {
         this.triggerAiBotGuess(room);
@@ -403,6 +426,54 @@ export class RoomManager {
         this.endTurn(roomId, 'Temps écoulé !');
       }
     }, 1000);
+  }
+
+  async checkAntiCheatDrawing(room) {
+    if (!room || room.state !== 'DRAWING' || !room.lastImageSnapshot || room.antiCheatInProgress) return;
+    const now = Date.now();
+    // Cooldown 15s après une pénalité pour laisser le temps d'effacer sans double sanction immédiate
+    if (room.antiCheatLastPenalty && now - room.antiCheatLastPenalty < 15000) return;
+    if (room.antiCheatLastCheck && now - room.antiCheatLastCheck < 3500) return;
+
+    room.antiCheatInProgress = true;
+    room.antiCheatLastCheck = now;
+
+    try {
+      const result = await detectTextInDrawing({
+        imageBase64: room.lastImageSnapshot,
+        secretWord: room.currentWord,
+        apiKey: process.env.GEMINI_API_KEY,
+      });
+
+      if (result.hasText && room.state === 'DRAWING') {
+        room.antiCheatLastPenalty = Date.now();
+        const drawer = room.players.get(room.currentDrawerId);
+        if (drawer) {
+          drawer.score -= 100;
+          drawer.roundScore = (drawer.roundScore || 0) - 100;
+        }
+
+        // Avertissement direct au dessinateur
+        this.io.to(room.currentDrawerId).emit('anti_cheat_warning', {
+          message: 'des lettres ou un mot ont était detecté sur votre dessin une penalitée de -100 point vous sera soumise',
+          detectedText: result.detectedText || '',
+          penalty: 100,
+        });
+
+        // Message dans le chat pour informer la table et mise à jour des scores
+        this.broadcastChat(room.id, {
+          sender: 'Anti-triche',
+          text: `🚨 Anti-triche : Des lettres ou un mot ont été détectés sur le dessin de ${drawer?.nickname || 'le dessinateur'} ! (-100 pts)`,
+          type: 'system',
+        });
+
+        this.broadcastRoomState(room.id);
+      }
+    } catch (e) {
+      // Ignorer silencieusement en cas d'erreur réseau
+    } finally {
+      room.antiCheatInProgress = false;
+    }
   }
 
   async triggerAiBotGuess(room) {
@@ -489,6 +560,12 @@ export class RoomManager {
       // On retransmet aux autres joueurs pour qu'ils voient la forme bouger en direct, sans polluer l'historique permanent
       this.io.to(roomId).emit('draw_event', action);
       return;
+    } else if (action.type === 'snapshot') {
+      // Capture d'image pour l'anti-triche / IA : ne pas diffuser ni stocker dans l'historique des traits
+      if (action.snapshot) {
+        room.lastImageSnapshot = action.snapshot;
+      }
+      return;
     } else {
       room.canvasActions.push(action);
     }
@@ -548,13 +625,16 @@ export class RoomManager {
         }
       }
 
-      // Si le joueur a déjà trouvé le mot
+      // Si le joueur a déjà trouvé le mot : message visible UNIQUEMENT par ceux qui ont déjà trouvé + le dessinateur
       if (player.hasGuessed) {
-        // Message réservé aux autres joueurs ayant déjà trouvé
-        this.io.to(roomId).emit('chat_message', {
-          sender: player.nickname,
-          text,
-          type: 'guessed_chat',
+        room.players.forEach((p) => {
+          if ((p.hasGuessed || p.id === room.currentDrawerId) && !p.isAi) {
+            this.io.to(p.id).emit('chat_message', {
+              sender: player.nickname,
+              text,
+              type: 'guessed_chat',
+            });
+          }
         });
         return;
       }

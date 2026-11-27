@@ -1,8 +1,22 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Palette, Clock } from 'lucide-react';
 
-export default function WordSelector({ choices, timeout = 15, onSelect }) {
+export default function WordSelector({ choices, timeout = 20, timeRemaining, onSelect }) {
+  const [selectedWord, setSelectedWord] = useState(null);
+
+  useEffect(() => {
+    setSelectedWord(null);
+  }, [choices]);
+
   if (!choices || choices.length === 0) return null;
+
+  const displaySeconds = typeof timeRemaining === 'number' ? timeRemaining : timeout;
+
+  const handlePick = (word) => {
+    if (selectedWord) return; // Empêcher les double-clics
+    setSelectedWord(word);
+    onSelect(word);
+  };
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
@@ -17,9 +31,15 @@ export default function WordSelector({ choices, timeout = 15, onSelect }) {
         <div className="grid gap-3 mb-6">
           {choices.map((word, idx) => (
             <button
-              key={idx}
-              onClick={() => onSelect(word)}
-              className="py-4 px-6 bg-slate-800 hover:bg-indigo-600 active:scale-98 border border-slate-700 hover:border-indigo-400 rounded-2xl text-lg font-bold capitalize transition duration-150 shadow-md hover:shadow-indigo-500/20 flex items-center justify-between group"
+              key={word || idx}
+              type="button"
+              disabled={Boolean(selectedWord)}
+              onClick={() => handlePick(word)}
+              className={`py-4 px-6 border rounded-2xl text-lg font-bold capitalize transition duration-150 shadow-md flex items-center justify-between group ${
+                selectedWord === word
+                  ? 'bg-indigo-600 border-indigo-400 scale-98'
+                  : 'bg-slate-800 hover:bg-indigo-600 active:scale-98 border-slate-700 hover:border-indigo-400 hover:shadow-indigo-500/20 disabled:opacity-50'
+              }`}
             >
               <span className="flex items-center gap-1">
                 {word.split('-').map((part, i, arr) => (
@@ -47,7 +67,7 @@ export default function WordSelector({ choices, timeout = 15, onSelect }) {
 
         <div className="flex items-center justify-center gap-2 text-xs text-amber-400 font-medium">
           <Clock className="w-4 h-4 animate-spin" />
-          <span>Choix automatique si tu n'en sélectionnes aucun</span>
+          <span>Choix automatique dans {displaySeconds}s si tu n'en sélectionnes aucun</span>
         </div>
       </div>
     </div>

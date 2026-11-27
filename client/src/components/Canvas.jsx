@@ -23,6 +23,7 @@ export default function Canvas({
   const isDrawingRef = useRef(false);
   const lastPointRef = useRef(null);
   const undoStackRef = useRef([]);
+  const lastSnapshotSentAtRef = useRef(0);
 
   // Gestion des formes géométriques rapides
   // activeShape: { shape: 'circle'|'square'|'rectangle'|'triangle', x: 0..1, y: 0..1, scale: 1.0, color, size }
@@ -60,11 +61,14 @@ export default function Canvas({
     } catch (e) {}
   }, []);
 
-  // Envoi d'une capture périodique pour l'analyse IA
-  const sendSnapshot = useCallback(() => {
+  // Envoi d'une capture périodique (throttlée à 2.5s) pour l'analyse IA / Anti-triche
+  const sendSnapshot = useCallback((force = false) => {
     const canvas = canvasRef.current;
     if (!canvas || !onSnapshotReady) return;
-    const dataUrl = canvas.toDataURL('image/png', 0.7);
+    const now = Date.now();
+    if (!force && now - lastSnapshotSentAtRef.current < 2500) return;
+    lastSnapshotSentAtRef.current = now;
+    const dataUrl = canvas.toDataURL('image/png', 0.6);
     onSnapshotReady(dataUrl);
   }, [onSnapshotReady]);
 
